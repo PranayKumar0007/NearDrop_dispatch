@@ -1,7 +1,5 @@
 # NearDrop: Intelligent Last-Mile Delivery Recovery
 
-![NearDrop Hero](file:///home/pandu/.gemini/antigravity/brain/348c7da6-7bea-43e4-b4f0-9f03430a58b0/neardrop_hero_1774617764734.png)
-
 NearDrop is a full-stack last-mile delivery recovery platform designed to minimize failed deliveries and optimize urban logistics. Instead of returning failed packages to distant redistribution centers, NearDrop empowers drivers to securely drop packages at local **Hubs** (Kirana stores, pharmacies, or apartment receptions), ensuring faster secondary delivery and reduced operational costs.
 
 ## 🚀 Vision

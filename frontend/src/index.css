@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-navy-900 text-white font-sans antialiased;
+    min-height: 100dvh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-navy-800;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-navy-600 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-teal-700;
+  }
+}
+
+@layer components {
+  /* Glass card */
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl;
+  }
+
+  .glass-raised {
+    @apply bg-white/8 backdrop-blur-lg border border-white/15 rounded-2xl shadow-card;
+  }
+
+  /* Status chips */
+  .status-en_route  { @apply bg-amber-500/20 text-amber-300 border border-amber-500/30; }
+  .status-arrived   { @apply bg-blue-500/20  text-blue-300  border border-blue-500/30; }
+  .status-delivered { @apply bg-teal-500/20  text-teal-300  border border-teal-500/30; }
+  .status-failed    { @apply bg-red-500/20   text-red-300   border border-red-500/30; }
+
+  /* Map containers */
+  .leaflet-container {
+    @apply rounded-2xl;
+    background: #0a1628 !important;
+  }
+
+  /* Button base */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+           font-semibold text-sm transition-all duration-200 cursor-pointer
+           select-none active:scale-95;
+  }
+  .btn-primary {
+    @apply btn bg-teal-500 hover:bg-teal-400 text-navy-900 shadow-glow-teal hover:shadow-glow-teal-lg;
+  }
+  .btn-danger {
+    @apply btn bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/30;
+  }
+  .btn-ghost {
+    @apply btn bg-white/5 hover:bg-white/10 text-white/70 hover:text-white;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3
+           text-white placeholder-white/30 outline-none
+           focus:border-teal-500 focus:ring-1 focus:ring-teal-500/50
+           transition-all duration-200;
+  }
+
+  /* Trust score badge */
+  .trust-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
+           bg-teal-500/20 border border-teal-500/30 text-teal-300
+           text-xs font-bold;
+  }
+}
+
+@layer utilities {
+  .bg-white\/8 { background-color: rgba(255,255,255,0.08); }
+  .min-h-dvh   { min-height: 100dvh; }
+  .h-dvh       { height: 100dvh; }
+
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-gradient-to-r from-teal-400 to-teal-200 bg-clip-text text-transparent;
+  }
+}
+
+/* Leaflet dark tile override */
+.leaflet-tile-container img { filter: brightness(0.7) saturate(0.9); }
+
+/* Mic pulse rings (defined outside Tailwind for animation chaining) */
+.mic-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 201, 177, 0.6);
+  animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+.mic-ring:nth-child(2) { animation-delay: 0.5s; }
+.mic-ring:nth-child(3) { animation-delay: 1s; }
