@@ -12,20 +12,15 @@ const COMMAND_HINTS = [
 export default function MicButton({ onCommand, className }) {
   const [hint] = useState(COMMAND_HINTS[Math.floor(Math.random() * COMMAND_HINTS.length)])
 
-  const handleResult = useCallback((transcript) => {
+  const handleResult = useCallback(transcript => {
     onCommand(transcript.toLowerCase())
   }, [onCommand])
 
   const { listening, supported, start, stop } = useVoice({ onResult: handleResult })
-
-  const handlePress = () => {
-    if (listening) stop()
-    else start()
-  }
+  const handlePress = () => listening ? stop() : start()
 
   return (
-    <div className={clsx('flex flex-col items-center gap-5', className)}>
-      {/* Pulse rings */}
+    <div className={clsx('flex flex-col items-center gap-4', className)}>
       <div className="relative flex items-center justify-center">
         {listening && (
           <>
@@ -38,35 +33,40 @@ export default function MicButton({ onCommand, className }) {
         <button
           id="mic-button"
           onPointerDown={handlePress}
-          className={clsx(
-            'relative z-10 w-28 h-28 rounded-full flex items-center justify-center',
-            'transition-all duration-300 active:scale-90',
-            listening
-              ? 'bg-teal-500 shadow-glow-teal-lg'
-              : 'bg-navy-700 border-2 border-teal-500/50 hover:border-teal-400 hover:shadow-glow-teal',
-          )}
+          className="relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90"
+          style={listening ? {
+            background: '#0d7377',
+            boxShadow: '0 8px 32px rgba(13,115,119,0.4)',
+          } : {
+            background: 'rgba(255,255,255,0.9)',
+            border: '1.5px solid rgba(13,115,119,0.25)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+          }}
         >
           {listening
-            ? <MicOff className="w-11 h-11 text-navy-900" />
-            : <Mic    className="w-11 h-11 text-teal-400"  />
+            ? <MicOff className="w-9 h-9 text-white" />
+            : <Mic    className="w-9 h-9" style={{ color: '#0d7377' }} />
           }
         </button>
       </div>
 
       <div className="text-center">
-        <p className={clsx(
-          'text-sm font-medium transition-colors',
-          listening ? 'text-teal-300' : 'text-white/50',
-        )}>
-          {listening ? 'Listening...' : 'Tap to speak'}
+        <p
+          className="text-sm font-semibold transition-colors"
+          style={{ color: listening ? '#0d7377' : '#6b6b7b' }}
+        >
+          {listening ? 'Listening…' : 'Tap to speak'}
         </p>
         {!listening && (
-          <p className="text-xs text-white/30 mt-1">{hint}</p>
+          <p className="text-[11px] mt-0.5" style={{ color: '#9898a8' }}>{hint}</p>
         )}
       </div>
 
       {!supported && (
-        <p className="text-xs text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
+        <p
+          className="text-xs px-3 py-1.5 rounded-lg"
+          style={{ background: 'rgba(217,119,6,0.08)', color: '#d97706', border: '1px solid rgba(217,119,6,0.2)' }}
+        >
           Voice not supported — use text input below
         </p>
       )}

@@ -1,17 +1,24 @@
 import { useState } from 'react'
-import { Package, MapPin, CheckCircle, Clock, Weight } from 'lucide-react'
+import { Package, MapPin, Clock, CheckCircle, Weight } from 'lucide-react'
 import { acceptBroadcast } from '../../api'
 
 const SIZE_CONFIG = {
-  small:  { label: 'Small',  color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
-  medium: { label: 'Medium', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)' },
-  large:  { label: 'Large',  color: '#c084fc', bg: 'rgba(192,132,252,0.1)' },
+  small:  { label: 'Small',  color: '#2563eb', bg: 'rgba(37,99,235,0.07)',  border: 'rgba(37,99,235,0.14)'  },
+  medium: { label: 'Medium', color: '#d97706', bg: 'rgba(217,119,6,0.07)',  border: 'rgba(217,119,6,0.16)'  },
+  large:  { label: 'Large',  color: '#7c3aed', bg: 'rgba(124,58,237,0.07)', border: 'rgba(124,58,237,0.15)' },
 }
 
-export default function BroadcastCard({ broadcast, onAccept, onDecline }) {
-  const [state, setState] = useState('idle')
-  const [pickupCode, setPickupCode] = useState('')
+export default function BroadcastCard({
+  broadcast,
+  onAccept,
+  onDecline,
+  initialState = 'idle',
+  initialPickupCode = '',
+}) {
+  const [state, setState] = useState(initialState)
+  const [pickupCode, setPickupCode] = useState(initialPickupCode)
   const sizeCfg = SIZE_CONFIG[broadcast.package_size] ?? SIZE_CONFIG.medium
+
 
   const handleAccept = async () => {
     setState('accepting')
@@ -27,11 +34,7 @@ export default function BroadcastCard({ broadcast, onAccept, onDecline }) {
       onAccept?.(broadcast, code)
     }
   }
-
-  const handleDecline = () => {
-    setState('declined')
-    onDecline?.(broadcast)
-  }
+  const handleDecline = () => { setState('declined'); onDecline?.(broadcast) }
 
   if (state === 'declined') return null
 
@@ -40,39 +43,37 @@ export default function BroadcastCard({ broadcast, onAccept, onDecline }) {
       <div
         className="animate-bounce-in rounded-2xl overflow-hidden"
         style={{
-          background: 'linear-gradient(145deg, rgba(0,201,177,0.08) 0%, rgba(0,201,177,0.03) 100%)',
-          border: '1px solid rgba(0,201,177,0.25)',
-          boxShadow: '0 8px 40px rgba(0,201,177,0.1)',
+          background: 'rgba(255,255,255,0.88)',
+          border: '1px solid rgba(13,115,119,0.18)',
+          boxShadow: '0 8px 40px rgba(13,115,119,0.12)',
+          backdropFilter: 'blur(24px)',
         }}
       >
-        {/* Top accent */}
-        <div style={{ height: 2, background: 'linear-gradient(90deg, #00c9b1, #34d399)' }} />
-
+        <div style={{ height: 3, background: 'linear-gradient(90deg, #0d7377, #34d399)' }} />
         <div className="p-5">
           <div className="flex items-center gap-3 mb-4">
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: 'rgba(0,201,177,0.15)', border: '1px solid rgba(0,201,177,0.3)' }}
+              style={{ background: 'rgba(13,115,119,0.08)', border: '1px solid rgba(13,115,119,0.2)' }}
             >
-              <CheckCircle className="w-5 h-5" style={{ color: '#00c9b1' }} />
+              <CheckCircle className="w-5 h-5" style={{ color: '#0d7377' }} />
             </div>
             <div>
-              <p className="font-bold text-white text-sm">Package Accepted</p>
-              <p className="text-[11px] font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>#{broadcast.order_id}</p>
+              <p className="font-bold text-sm" style={{ color: '#111117' }}>Package Accepted</p>
+              <p className="text-[11px] font-mono" style={{ color: '#9898a8' }}>#{broadcast.order_id}</p>
             </div>
           </div>
 
-          {/* Code display */}
           <div
             className="rounded-xl p-4 text-center"
-            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)' }}
+            style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.07)' }}
           >
-            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: '#9898a8' }}>
               Pickup Code — Show to Driver
             </p>
             <p
-              className="font-black tracking-[0.35em] leading-none"
-              style={{ fontSize: 28, color: '#00c9b1', textShadow: '0 0 20px rgba(0,201,177,0.5)' }}
+              className="font-black tracking-[0.3em] leading-none"
+              style={{ fontSize: 26, color: '#0d7377' }}
             >
               {pickupCode}
             </p>
@@ -83,87 +84,87 @@ export default function BroadcastCard({ broadcast, onAccept, onDecline }) {
   }
 
   return (
-    <div
-      className="broadcast-card animate-slide-up"
-    >
-      {/* Top urgency bar */}
+    <div className="broadcast-card animate-slide-up">
+      {/* Urgency strip */}
       <div
         style={{
           height: 2,
-          background: 'linear-gradient(90deg, #fbbf24, #00c9b1)',
-          animation: 'shimmer 2s linear infinite',
+          background: 'linear-gradient(90deg, #d97706, #0d7377)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 2.5s linear infinite',
         }}
       />
 
       <div className="p-4">
-        {/* Header row */}
+        {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div>
             <div className="flex items-center gap-1.5 mb-0.5">
-              <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#fbbf24' }} />
-              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(251,191,36,0.7)' }}>
+              <span
+                className="w-1.5 h-1.5 rounded-full inline-block"
+                style={{ background: '#d97706', animation: 'ping 2s infinite' }}
+              />
+              <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: '#d97706' }}>
                 New Request
               </p>
             </div>
-            <p className="font-black text-white text-sm">Incoming Package</p>
+            <p className="font-bold text-sm" style={{ color: '#111117' }}>Incoming Package</p>
           </div>
           <span
             className="font-mono text-[11px] px-2 py-1 rounded-lg"
-            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: 'rgba(0,0,0,0.04)', color: '#9898a8', border: '1px solid rgba(0,0,0,0.07)' }}
           >
             #{broadcast.order_id}
           </span>
         </div>
 
-        {/* Metadata pills */}
+        {/* Metadata chips */}
         <div className="flex flex-wrap gap-2 mb-3">
-          <div
+          <span
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold"
-            style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.07)' }}
+            style={{ background: 'rgba(0,0,0,0.04)', color: '#6b6b7b', border: '1px solid rgba(0,0,0,0.07)' }}
           >
-            <MapPin className="w-3 h-3" style={{ color: '#60a5fa' }} />
+            <MapPin className="w-3 h-3" style={{ color: '#2563eb' }} />
             {broadcast.distance_m < 1000
               ? `${Math.round(broadcast.distance_m)}m`
               : `${(broadcast.distance_m / 1000).toFixed(1)}km`}
-          </div>
+          </span>
 
-          <div
+          <span
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold"
-            style={{ background: sizeCfg.bg, color: sizeCfg.color, border: `1px solid ${sizeCfg.color}25` }}
+            style={{ background: sizeCfg.bg, color: sizeCfg.color, border: `1px solid ${sizeCfg.border}` }}
           >
             <Package className="w-3 h-3" />
             {sizeCfg.label}
-          </div>
+          </span>
 
           {broadcast.weight_kg && (
-            <div
+            <span
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold"
-              style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.07)' }}
+              style={{ background: 'rgba(0,0,0,0.04)', color: '#6b6b7b', border: '1px solid rgba(0,0,0,0.07)' }}
             >
               <Weight className="w-3 h-3" />
               {broadcast.weight_kg}kg
-            </div>
+            </span>
           )}
         </div>
 
-        {/* Reward strip */}
+        {/* Reward */}
         <div
-          className="flex items-center justify-between rounded-xl px-3 py-2.5 mb-4"
+          className="flex items-center justify-between px-3 py-2.5 rounded-xl mb-4"
           style={{
-            background: 'linear-gradient(135deg, rgba(0,201,177,0.08) 0%, rgba(52,211,153,0.05) 100%)',
-            border: '1px solid rgba(0,201,177,0.15)',
+            background: 'rgba(13,115,119,0.05)',
+            border: '1px solid rgba(13,115,119,0.14)',
           }}
         >
           <div className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.3)' }} />
-            <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Storage reward</span>
+            <Clock className="w-3.5 h-3.5" style={{ color: '#9898a8' }} />
+            <span className="text-xs font-medium" style={{ color: '#6b6b7b' }}>Storage reward</span>
           </div>
-          <span className="text-base font-black" style={{ color: '#00c9b1' }}>
-            +₹{broadcast.reward ?? 25}
-          </span>
+          <span className="font-black text-base" style={{ color: '#0d7377' }}>+₹{broadcast.reward ?? 25}</span>
         </div>
 
-        {/* CTA Buttons */}
+        {/* Buttons */}
         <div className="flex gap-2">
           <button
             id={`btn-accept-${broadcast.id}`}
@@ -172,7 +173,7 @@ export default function BroadcastCard({ broadcast, onAccept, onDecline }) {
             className="btn-primary flex-1 text-sm"
           >
             {state === 'accepting'
-              ? <span className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              ? <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin inline-block" />
               : '✓ Accept Package'
             }
           </button>
@@ -185,6 +186,7 @@ export default function BroadcastCard({ broadcast, onAccept, onDecline }) {
           </button>
         </div>
       </div>
+      <style>{`@keyframes ping { 75%,100%{transform:scale(2.5);opacity:0} } @keyframes shimmer { 0%{background-position:-400% 0} 100%{background-position:400% 0} }`}</style>
     </div>
   )
 }

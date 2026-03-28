@@ -95,7 +95,7 @@ export function DeliveryMap({ lat, lng, height = '220px' }) {
 }
 
 export function FleetMap({ drivers = [], height = '100%' }) {
-  const center = [17.4239, 78.4738]
+  const center = [17.435, 78.410]
   return (
     <MapContainer
       center={center}

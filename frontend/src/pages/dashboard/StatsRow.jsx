@@ -1,63 +1,98 @@
 import { Package, CheckCircle, RefreshCw, Leaf } from 'lucide-react'
 
-const ACCENT_CONFIGS = {
-  deliveries: { icon: Package,     gradient: 'from-blue-500 to-indigo-600',  glow: 'rgba(99,102,241,0.25)',  label: 'Deliveries Today',      unit: null },
-  success:    { icon: CheckCircle, gradient: 'from-teal-400 to-emerald-500', glow: 'rgba(0,201,177,0.25)',   label: '1st Attempt Success',   unit: '%'  },
-  reroutes:   { icon: RefreshCw,   gradient: 'from-amber-400 to-orange-500', glow: 'rgba(251,191,36,0.25)',  label: 'Hub Reroutes',          unit: null },
-  co2:        { icon: Leaf,        gradient: 'from-green-400 to-emerald-500', glow: 'rgba(52,211,153,0.25)', label: 'CO₂ Saved',             unit: 'kg' },
-}
+const CARDS = [
+  {
+    key: 'deliveries',
+    icon: Package,
+    label: 'Deliveries Today',
+    statKey: 'total_deliveries',
+    change: 12,
+    iconBg: '#eff6ff',
+    iconColor: '#2563eb',
+    changeBg: 'rgba(37,99,235,0.07)',
+    changeColor: '#2563eb',
+    accent: '#dbeafe',
+  },
+  {
+    key: 'success',
+    icon: CheckCircle,
+    label: '1st Attempt Success',
+    statKey: 'first_attempt_success_rate',
+    suffix: '%',
+    change: 3.2,
+    iconBg: 'rgba(13,115,119,0.08)',
+    iconColor: '#0d7377',
+    changeBg: 'rgba(13,115,119,0.08)',
+    changeColor: '#0d7377',
+    accent: '#ccfbf1',
+  },
+  {
+    key: 'reroutes',
+    icon: RefreshCw,
+    label: 'Hub Reroutes',
+    statKey: 'hub_reroutes',
+    change: -5,
+    iconBg: 'rgba(217,119,6,0.08)',
+    iconColor: '#d97706',
+    changeBg: 'rgba(220,38,38,0.07)',
+    changeColor: '#dc2626',
+    accent: '#fef3c7',
+  },
+  {
+    key: 'co2',
+    icon: Leaf,
+    label: 'CO₂ Saved',
+    statKey: 'co2_saved_kg',
+    suffix: 'kg',
+    change: 18,
+    iconBg: 'rgba(5,150,105,0.08)',
+    iconColor: '#059669',
+    changeBg: 'rgba(5,150,105,0.08)',
+    changeColor: '#059669',
+    accent: '#d1fae5',
+  },
+]
 
-function StatCard({ configKey, value, change }) {
-  const cfg = ACCENT_CONFIGS[configKey]
-  const Icon = cfg.icon
+function StatCard({ cfg, value }) {
+  const { icon: Icon, label, suffix, change, iconBg, iconColor, changeBg, changeColor, accent } = cfg
   const positive = change >= 0
 
   return (
-    <div className="stat-card relative overflow-hidden group cursor-default">
-      {/* Ambient glow blob behind card */}
+    <div className="stat-card group cursor-default">
+      {/* Top accent strip */}
       <div
-        className="absolute -top-6 -right-6 w-24 h-24 rounded-full pointer-events-none transition-all duration-500 group-hover:scale-125"
-        style={{ background: `radial-gradient(circle, ${cfg.glow} 0%, transparent 70%)` }}
+        className="absolute top-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{ background: accent }}
       />
 
-      {/* Top row: icon + change badge */}
-      <div className="flex items-start justify-between mb-4 relative">
+      <div className="flex items-start justify-between mb-4">
         <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ${cfg.gradient} shrink-0`}
-          style={{ boxShadow: `0 4px 16px ${cfg.glow}` }}
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: iconBg }}
         >
-          <Icon className="w-4.5 h-4.5 text-white" />
+          <Icon className="w-4.5 h-4.5" style={{ color: iconColor }} />
         </div>
 
-        {change !== undefined && (
-          <div
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold"
-            style={{
-              background: positive ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.1)',
-              border: `1px solid ${positive ? 'rgba(52,211,153,0.2)' : 'rgba(239,68,68,0.2)'}`,
-              color: positive ? '#34d399' : '#f87171',
-            }}
-          >
-            {positive ? '↑' : '↓'} {Math.abs(change)}%
-          </div>
+        <div
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold"
+          style={{ background: changeBg, color: changeColor }}
+        >
+          {positive ? '↑' : '↓'} {Math.abs(change)}%
+        </div>
+      </div>
+
+      <p
+        className="font-black leading-none tracking-tight"
+        style={{ fontSize: 28, color: '#111117' }}
+      >
+        {typeof value === 'number' ? value.toLocaleString() : value}
+        {suffix && (
+          <span className="font-semibold ml-1" style={{ fontSize: 15, color: '#9898a8' }}>
+            {suffix}
+          </span>
         )}
-      </div>
-
-      {/* Value */}
-      <div className="relative">
-        <p className="text-3xl font-black text-white leading-none tracking-tight">
-          {typeof value === 'number' ? value.toLocaleString() : value}
-          {cfg.unit && <span className="text-base font-semibold text-white/30 ml-1.5">{cfg.unit}</span>}
-        </p>
-        <p className="text-xs font-medium mt-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-          {cfg.label}
-        </p>
-      </div>
-
-      {/* Bottom accent line */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r ${cfg.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-      />
+      </p>
+      <p className="text-xs font-medium mt-1.5" style={{ color: '#6b6b7b' }}>{label}</p>
     </div>
   )
 }
@@ -67,7 +102,7 @@ export default function StatsRow({ stats }) {
     return (
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-32 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+          <div key={i} className="skeleton h-32 rounded-2xl" />
         ))}
       </div>
     )
@@ -75,10 +110,15 @@ export default function StatsRow({ stats }) {
 
   return (
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-      <StatCard configKey="deliveries" value={stats.total_deliveries}             change={12}  />
-      <StatCard configKey="success"    value={stats.first_attempt_success_rate}   change={3.2} />
-      <StatCard configKey="reroutes"   value={stats.hub_reroutes}                 change={-5}  />
-      <StatCard configKey="co2"        value={stats.co2_saved_kg}                 change={18}  />
+      {CARDS.map(cfg => (
+        <StatCard
+          key={cfg.key}
+          cfg={cfg}
+          value={cfg.statKey === 'first_attempt_success_rate'
+            ? stats[cfg.statKey]
+            : stats[cfg.statKey]}
+        />
+      ))}
     </div>
   )
 }

@@ -1,11 +1,11 @@
 import { NavLink, Link } from 'react-router-dom'
-import { LayoutDashboard, Truck, Store, Activity, Settings } from 'lucide-react'
+import { LayoutDashboard, Truck, Store } from 'lucide-react'
 import clsx from 'clsx'
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Operations', sub: 'Fleet & Analytics' },
-  { to: '/driver',    icon: Truck,            label: 'Driver View', sub: 'Mobile Interface' },
-  { to: '/hub',       icon: Store,            label: 'Hub Owner',   sub: 'Store Dashboard'  },
+  { to: '/driver',    icon: Truck,            label: 'Driver View', sub: 'Mobile Interface'  },
+  { to: '/hub',       icon: Store,            label: 'Hub Owner',   sub: 'Store Dashboard'   },
 ]
 
 export default function Sidebar() {
@@ -13,92 +13,92 @@ export default function Sidebar() {
     <aside
       className="w-60 flex flex-col h-screen sticky top-0 shrink-0"
       style={{
-        background: 'linear-gradient(180deg, #0a1020 0%, #060c18 100%)',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
+        background: 'rgba(255,255,255,0.82)',
+        borderRight: '1px solid rgba(0,0,0,0.07)',
+        backdropFilter: 'blur(24px)',
       }}
     >
-      {/* Logo area */}
-      <div className="px-5 py-7">
+      {/* Logo */}
+      <div className="px-5 pt-7 pb-6">
         <Link to="/dashboard" className="flex items-center gap-3 group">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-[#060c18] text-lg shrink-0"
+            className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-base shrink-0"
             style={{
-              background: 'linear-gradient(135deg, #00c9b1 0%, #0099a0 100%)',
-              boxShadow: '0 4px 16px rgba(0,201,177,0.4), inset 0 1px 0 rgba(255,255,255,0.3)',
+              background: 'linear-gradient(135deg, #0d7377 0%, #14a09e 100%)',
+              boxShadow: '0 4px 14px rgba(13,115,119,0.35)',
             }}
           >
             N
           </div>
           <div>
-            <p className="font-black text-white leading-none tracking-tight" style={{ fontSize: 15 }}>
+            <p className="font-black leading-none tracking-tight" style={{ fontSize: 15, color: '#111117' }}>
               NearDrop
             </p>
-            <p className="text-[10px] font-medium mt-0.5" style={{ color: 'rgba(0,201,177,0.7)', letterSpacing: '0.08em' }}>
-              LAST MILE OPS
+            <p className="text-[10px] font-semibold mt-0.5 uppercase tracking-widest" style={{ color: '#0d7377', opacity: 0.7 }}>
+              Last Mile Ops
             </p>
           </div>
         </Link>
       </div>
 
-      {/* Status indicator */}
-      <div className="mx-4 mb-5 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(0,201,177,0.06)', border: '1px solid rgba(0,201,177,0.12)' }}>
-        <div className="flex items-center gap-2">
-          <div className="relative flex items-center justify-center w-5 h-5">
-            <span className="absolute inline-flex h-2 w-2 rounded-full bg-teal-400 opacity-75 animate-ping" style={{ animationDuration: '2s' }} />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400" />
+      {/* Live status pill */}
+      <div className="mx-4 mb-5">
+        <div
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl"
+          style={{ background: 'rgba(13,115,119,0.07)', border: '1px solid rgba(13,115,119,0.15)' }}
+        >
+          <div className="relative w-4 h-4 flex items-center justify-center shrink-0">
+            <span
+              className="absolute inline-flex w-2 h-2 rounded-full opacity-70"
+              style={{ background: '#0d7377', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite' }}
+            />
+            <span className="relative inline-flex w-2 h-2 rounded-full" style={{ background: '#0d7377' }} />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-white/80">System Live</p>
-            <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>Hyderabad · 5 drivers</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold" style={{ color: '#111117' }}>System Live</p>
+            <p className="text-[10px]" style={{ color: '#6b6b7b' }}>Hyderabad · 5 drivers</p>
           </div>
         </div>
       </div>
 
-      {/* Nav section label */}
-      <p className="px-5 mb-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.2)' }}>
+      <p className="px-5 mb-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: '#9898a8' }}>
         Interfaces
       </p>
 
-      {/* Navigation */}
+      {/* Nav */}
       <nav className="flex-1 px-3 space-y-1">
         {NAV_ITEMS.map(({ to, icon: Icon, label, sub }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/dashboard'}
-            className={({ isActive }) =>
-              clsx(
-                'flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 group',
-                isActive
-                  ? 'bg-[rgba(0,201,177,0.1)] border border-[rgba(0,201,177,0.2)]'
-                  : 'border border-transparent hover:bg-white/[0.04] hover:border-white/[0.06]',
-              )
-            }
+            className={({ isActive }) => clsx(
+              'flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150',
+              'border',
+              isActive
+                ? 'border-[rgba(13,115,119,0.18)] bg-[rgba(13,115,119,0.07)]'
+                : 'border-transparent hover:bg-black/[0.03] hover:border-black/[0.04]',
+            )}
           >
             {({ isActive }) => (
               <>
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                   style={{
-                    background: isActive ? 'rgba(0,201,177,0.15)' : 'rgba(255,255,255,0.05)',
-                    boxShadow: isActive ? '0 2px 12px rgba(0,201,177,0.2)' : 'none',
+                    background: isActive ? 'rgba(13,115,119,0.12)' : 'rgba(0,0,0,0.05)',
+                    boxShadow: isActive ? '0 2px 8px rgba(13,115,119,0.15)' : 'none',
                   }}
                 >
                   <Icon
-                    className="w-4 h-4 transition-colors"
-                    style={{ color: isActive ? '#00c9b1' : 'rgba(255,255,255,0.4)' }}
+                    className="w-4 h-4"
+                    style={{ color: isActive ? '#0d7377' : '#6b6b7b' }}
                   />
                 </div>
                 <div className="min-w-0">
-                  <p
-                    className="text-sm font-semibold leading-none"
-                    style={{ color: isActive ? '#00c9b1' : 'rgba(255,255,255,0.7)' }}
-                  >
+                  <p className="text-sm font-semibold leading-none" style={{ color: isActive ? '#0d7377' : '#3f3f4a' }}>
                     {label}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.28)' }}>
-                    {sub}
-                  </p>
+                  <p className="text-[10px] mt-0.5" style={{ color: '#9898a8' }}>{sub}</p>
                 </div>
               </>
             )}
@@ -107,26 +107,27 @@ export default function Sidebar() {
       </nav>
 
       {/* Divider */}
-      <div className="mx-4 my-3" style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
+      <div className="mx-4 my-3" style={{ height: 1, background: 'rgba(0,0,0,0.06)' }} />
 
-      {/* Footer user */}
+      {/* User footer */}
       <div className="px-4 pb-6">
-        <div className="flex items-center gap-3 px-3 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div
+          className="flex items-center gap-3 px-3 py-3 rounded-xl"
+          style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.06)' }}
+        >
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, #00c9b1 0%, #60a5fa 100%)',
-              color: '#060c18',
-            }}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white shrink-0"
+            style={{ background: 'linear-gradient(135deg, #0d7377, #6366f1)' }}
           >
             OP
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-bold text-white/80 leading-none">Operator</p>
-            <p className="text-[10px] mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.3)' }}>admin@neardrop.in</p>
+            <p className="text-xs font-bold leading-none" style={{ color: '#111117' }}>Operator</p>
+            <p className="text-[10px] mt-0.5 truncate" style={{ color: '#9898a8' }}>admin@neardrop.in</p>
           </div>
         </div>
       </div>
+      <style>{`@keyframes ping { 75%,100%{transform:scale(2);opacity:0} }`}</style>
     </aside>
   )
 }

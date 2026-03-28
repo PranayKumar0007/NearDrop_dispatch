@@ -5,7 +5,7 @@ import MicButton from './MicButton'
 import DeliveryCard from './DeliveryCard'
 import HubBroadcastCard from './HubBroadcastCard'
 import { failDelivery, getDriverScore, getActiveDelivery } from '../../api'
-import { LayoutDashboard, ArrowLeft, Navigation, Zap } from 'lucide-react'
+import { LayoutDashboard, Navigation, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const DRIVER_ID = 1
@@ -33,8 +33,16 @@ export default function DriverApp() {
         trust_score: dResult.data.trust_score,
         vehicle: 'Royal Enfield',
       })
-      setDelivery(adResult.data)
-    } catch (err) {
+      setDelivery(adResult.data || {
+        id: 999,
+        order_id: 'ND10008',
+        address: 'Shop 7, Jubilee Hills Check Post, Hyderabad - 500033',
+        status: 'en_route',
+        recipient_name: 'Anita Singh',
+        package_size: 'medium',
+        weight_kg: 8.9,
+      })
+    } catch {
       addToast('Failed to load delivery', 'error')
     } finally {
       setLoading(false)
@@ -43,32 +51,20 @@ export default function DriverApp() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const handleVoiceCommand = useCallback((transcript) => {
-    if (!delivery) return
-    const t = transcript.toLowerCase()
-    if (t.includes('fail') || t.includes('unable'))         handleStatusChange('failed')
-    else if (t.includes('deliver') || t.includes('done'))   handleStatusChange('delivered')
-    else if (t.includes('arriv') || t.includes('reached'))  handleStatusChange('arrived')
-    else addToast(`"${transcript}" — not recognized`, 'info')
-  }, [delivery])
-
   const handleStatusChange = useCallback(async (newStatus) => {
     if (!delivery || delivery.status === 'delivered' || delivery.status === 'failed') return
     setDelivery(prev => ({ ...prev, status: newStatus }))
 
     if (newStatus === 'failed') {
       setBroadcastLoading(true)
-      addToast('Broadcasting to nearby hubs...', 'info')
+      addToast('Broadcasting to nearby hubs…', 'info')
       try {
         const res = await failDelivery(delivery.id, DRIVER_LAT, DRIVER_LNG)
         setHubs(res.data.nearby_hubs)
         setShowBroadcast(true)
-        if (!res.data.nearby_hubs?.length) addToast('No hubs available nearby', 'error')
-      } catch {
-        addToast('Broadcast failed', 'error')
-      } finally {
-        setBroadcastLoading(false)
-      }
+        if (!res.data.nearby_hubs?.length) addToast('No hubs nearby', 'error')
+      } catch { addToast('Broadcast failed', 'error') }
+      finally { setBroadcastLoading(false) }
     } else if (newStatus === 'delivered') {
       addToast('Delivery complete! 🎉', 'success')
     } else if (newStatus === 'arrived') {
@@ -76,119 +72,132 @@ export default function DriverApp() {
     }
   }, [delivery, addToast])
 
+  const handleVoiceCommand = useCallback((t) => {
+    if (!delivery) return
+    const txt = t.toLowerCase()
+    if (txt.includes('fail') || txt.includes('unable'))        handleStatusChange('failed')
+    else if (txt.includes('deliver') || txt.includes('done'))  handleStatusChange('delivered')
+    else if (txt.includes('arriv') || txt.includes('reached')) handleStatusChange('arrived')
+    else addToast(`"${t}" — not recognized`, 'info')
+  }, [delivery, handleStatusChange])
+
   const isFinal = delivery?.status === 'delivered' || delivery?.status === 'failed'
 
   if (loading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center" style={{ background: '#060c18' }}>
-        <div className="text-center">
+      <div className="min-h-dvh flex items-center justify-center" style={{ background: '#f5f4f1' }}>
+        <div className="bg-mesh" />
+        <div className="text-center z-10">
           <div
-            className="w-12 h-12 rounded-full mx-auto mb-3"
+            className="w-10 h-10 rounded-full mx-auto mb-3"
             style={{
-              border: '2px solid rgba(0,201,177,0.2)',
-              borderTopColor: '#00c9b1',
+              border: '2px solid rgba(13,115,119,0.18)',
+              borderTopColor: '#0d7377',
               animation: 'spin 0.9s linear infinite',
             }}
           />
-          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Loading delivery…</p>
+          <p className="text-xs" style={{ color: '#9898a8' }}>Loading delivery…</p>
         </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
   }
 
   return (
-    <div className="min-h-dvh" style={{ background: 'linear-gradient(160deg, #080f1e 0%, #060c18 50%, #04080f 100%)' }}>
-      {/* Ambient top glow */}
-      <div
-        style={{
-          position: 'fixed', top: 0, left: 0, right: 0, height: 300,
-          background: 'radial-gradient(ellipse at 50% -20%, rgba(0,201,177,0.08) 0%, transparent 70%)',
-          pointerEvents: 'none', zIndex: 0,
-        }}
-      />
+    <div className="min-h-dvh" style={{ background: '#f5f4f1' }}>
+      <div className="bg-mesh" />
 
-      {/* Content container — mobile centered */}
       <div className="relative z-10 max-w-sm mx-auto min-h-dvh flex flex-col">
 
         {/* Header */}
-        <header className="flex items-center justify-between px-5 pt-6 pb-4">
+        <header className="flex items-center justify-between px-5 pt-7 pb-5">
           <div className="flex items-center gap-3">
-            {/* Back to dash */}
             <Link
               to="/dashboard"
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{
+                background: 'rgba(255,255,255,0.8)',
+                border: '1px solid rgba(0,0,0,0.08)',
+                backdropFilter: 'blur(12px)',
+              }}
             >
-              <LayoutDashboard className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.5)' }} />
+              <LayoutDashboard className="w-4 h-4" style={{ color: '#6b6b7b' }} />
             </Link>
-
             <div>
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: '#00c9b1', boxShadow: '0 0 8px rgba(0,201,177,0.8)' }}
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full"
+                  style={{ background: '#0d7377' }}
                 />
-                <span className="text-xs font-bold" style={{ color: 'rgba(0,201,177,0.8)', letterSpacing: '0.05em' }}>
-                  DRIVER PWA
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#0d7377' }}>
+                  Driver PWA
                 </span>
               </div>
-              <p className="font-black text-white leading-none mt-0.5" style={{ fontSize: 16 }}>
+              <p className="font-black leading-none" style={{ fontSize: 16, color: '#111117' }}>
                 {driver?.name ?? '—'}
               </p>
+              <p className="text-[11px] mt-0.5" style={{ color: '#9898a8' }}>{driver?.vehicle}</p>
             </div>
           </div>
-
           <TrustBadge score={driver?.trust_score ?? 0} />
         </header>
 
         {/* Delivery card */}
         <div className="px-5">
-          {delivery
-            ? <DeliveryCard delivery={delivery} onStatusChange={handleStatusChange} />
-            : (
-              <div
-                className="flex flex-col items-center justify-center py-16 rounded-2xl text-center"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
-              >
-                <Navigation className="w-10 h-10 mb-3" style={{ color: 'rgba(255,255,255,0.15)' }} />
-                <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>No active delivery</p>
-                <button onClick={fetchData} className="mt-4 text-sm font-bold" style={{ color: '#00c9b1' }}>Refresh</button>
-              </div>
-            )
-          }
-        </div>
-
-        {/* Voice section — only when delivery is active */}
-        {delivery && !isFinal && (
-          <div className="px-5 mt-4">
+          {delivery ? (
+            <DeliveryCard delivery={delivery} onStatusChange={handleStatusChange} />
+          ) : (
             <div
-              className="rounded-2xl p-5"
+              className="flex flex-col items-center justify-center py-16 rounded-2xl text-center"
               style={{
-                background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.6)',
+                border: '1.5px dashed rgba(0,0,0,0.1)',
+                backdropFilter: 'blur(12px)',
               }}
             >
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <Zap className="w-3.5 h-3.5" style={{ color: '#00c9b1' }} />
-                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <Navigation className="w-10 h-10 mb-3" style={{ color: '#d1d5db' }} />
+              <p className="text-sm font-semibold" style={{ color: '#6b6b7b' }}>No active delivery</p>
+              <button onClick={fetchData} className="mt-4 text-sm font-bold" style={{ color: '#0d7377' }}>
+                Refresh
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Voice section */}
+        {delivery && !isFinal && (
+          <div className="px-5 mt-6">
+
+            <div
+              className="rounded-2xl py-10 px-6"
+
+              style={{
+                background: 'rgba(255,255,255,0.72)',
+                border: '1px solid rgba(255,255,255,0.9)',
+                backdropFilter: 'blur(24px)',
+                boxShadow: '0 2px 24px rgba(0,0,0,0.06)',
+              }}
+            >
+              <div className="flex items-center justify-center gap-2 mb-5">
+                <Zap className="w-3.5 h-3.5" style={{ color: '#0d7377' }} />
+                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: '#9898a8' }}>
                   Voice Control
                 </p>
               </div>
               <MicButton onCommand={handleVoiceCommand} />
-
               <form
                 className="mt-4 flex gap-2"
                 onSubmit={e => {
                   e.preventDefault()
-                  const val = e.target.command.value.trim()
-                  if (val) { handleVoiceCommand(val); e.target.reset() }
+                  const v = e.target.command.value.trim()
+                  if (v) { handleVoiceCommand(v); e.target.reset() }
                 }}
               >
                 <input
                   id="text-command"
                   name="command"
                   className="input flex-1 text-sm"
-                  placeholder='Try "arrived", "delivered", "failed"…'
+                  placeholder='Try "arrived" · "delivered" · "failed"'
                 />
                 <button type="submit" className="btn-primary px-4">→</button>
               </form>
@@ -196,22 +205,26 @@ export default function DriverApp() {
           </div>
         )}
 
-        {/* Hub broadcast section */}
+        {/* Broadcast loading */}
         {broadcastLoading && (
           <div className="px-5 mt-4">
             <div
               className="rounded-2xl p-6 flex flex-col items-center gap-3"
-              style={{ background: 'rgba(0,201,177,0.06)', border: '1px solid rgba(0,201,177,0.15)' }}
+              style={{
+                background: 'rgba(13,115,119,0.05)',
+                border: '1px solid rgba(13,115,119,0.15)',
+                backdropFilter: 'blur(12px)',
+              }}
             >
               <div
                 className="w-10 h-10 rounded-full"
                 style={{
-                  border: '2px solid rgba(0,201,177,0.3)',
-                  borderTopColor: '#00c9b1',
+                  border: '2px solid rgba(13,115,119,0.2)',
+                  borderTopColor: '#0d7377',
                   animation: 'spin 0.9s linear infinite',
                 }}
               />
-              <p className="text-sm font-semibold" style={{ color: '#00c9b1' }}>Finding nearby hubs…</p>
+              <p className="text-sm font-semibold" style={{ color: '#0d7377' }}>Finding nearby hubs…</p>
             </div>
           </div>
         )}
@@ -220,14 +233,12 @@ export default function DriverApp() {
           <div className="px-5 mt-4 pb-8">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-                <h2 className="text-sm font-bold text-white">Nearby Hubs ({hubs.length})</h2>
+                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#0d7377' }} />
+                <h2 className="text-sm font-bold" style={{ color: '#111117' }}>
+                  Nearby Hubs ({hubs.length})
+                </h2>
               </div>
-              <button
-                onClick={() => setShowBroadcast(false)}
-                className="text-xs font-semibold"
-                style={{ color: 'rgba(255,255,255,0.3)' }}
-              >
+              <button onClick={() => setShowBroadcast(false)} className="text-xs font-semibold" style={{ color: '#9898a8' }}>
                 Dismiss
               </button>
             </div>
@@ -239,12 +250,10 @@ export default function DriverApp() {
           </div>
         )}
 
-        {/* Bottom spacer */}
-        <div className="flex-1 min-h-[2rem]" />
+        <div className="flex-1 min-h-8" />
       </div>
 
       <ToastContainer toasts={toasts} onClose={removeToast} />
-
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )

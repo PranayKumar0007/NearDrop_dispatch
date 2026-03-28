@@ -116,6 +116,45 @@ async def seed():
         )
         failed_deliveries = failed_result.scalars().all()
 
+        import random as rnd
+        import string as st
+        # Guarantee driver 1 has an active delivery
+        guaranteed_delivery = Delivery(
+            driver_id=1,
+            address="Plot 42, Road No.12, Banjara Hills, Hyderabad - 500034",
+            status=DeliveryStatus.en_route,
+            package_size=PackageSize.medium,
+            weight_kg=8.9,
+            created_at=datetime.utcnow() - timedelta(minutes=10),
+            recipient_name="Anita Singh",
+            order_id="ND10006",
+        )
+        db.add(guaranteed_delivery)
+
+        # Guarantee Hub 1 has an accepted broadcast (to show OTP)
+        guaranteed_failed_delivery = Delivery(
+            driver_id=2,
+            address="Shop 7, Jubilee Hills Check Post, Hyderabad - 500033",
+            status=DeliveryStatus.failed,
+            package_size=PackageSize.small,
+            weight_kg=1.2,
+            created_at=datetime.utcnow() - timedelta(minutes=30),
+            recipient_name="Rahul Verma",
+            order_id="ND10007",
+        )
+        db.add(guaranteed_failed_delivery)
+        await db.flush()
+
+        broadcast = HubBroadcast(
+            delivery_id=guaranteed_failed_delivery.id,
+            hub_id=1,
+            pickup_code="847291",
+            broadcast_at=datetime.utcnow() - timedelta(minutes=25),
+            accepted_at=datetime.utcnow() - timedelta(minutes=24),
+        )
+        db.add(broadcast)
+        hubs[0].today_earnings += 25.0
+
         for fd in failed_deliveries:
             hub = random.choice(hubs)
             import random as rnd
