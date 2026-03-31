@@ -7,7 +7,8 @@ import random
 from datetime import datetime, timedelta
 
 from backend.database import init_db, AsyncSessionLocal
-from backend.models import Driver, Hub, Delivery, HubBroadcast, DeliveryStatus, PackageSize, HubType
+from backend.models import Driver, Hub, Delivery, HubBroadcast, DeliveryStatus, PackageSize, HubType, User, UserRole
+from backend.auth import hash_password
 
 
 DRIVERS = [
@@ -104,7 +105,7 @@ async def seed():
                 created_at=created,
                 delivered_at=delivered_at,
                 recipient_name=random.choice(RECIPIENT_NAMES),
-                order_id=f"ND{10000 + i}",
+                order_id=f"ND{10100 + i}",
             )
             db.add(delivery)
 
@@ -171,7 +172,36 @@ async def seed():
             db.add(broadcast)
 
         await db.commit()
-        print("✅ Seed complete: 5 drivers, 8 hubs, 50 deliveries")
+
+        # ── Seed Users ────────────────────────────────────────────────────────
+        from sqlalchemy import text
+        await db.execute(text("DELETE FROM users"))
+        await db.commit()
+
+        driver_password = hash_password("driver123")
+        hub_password = hash_password("hub123")
+
+        seed_users = [
+            # Drivers — phones 9000000001-3 linked to first 3 driver rows
+            User(phone="9000000001", hashed_password=driver_password, role=UserRole.driver,
+                 name="Arjun Reddy",     driver_id=drivers[0].id),
+            User(phone="9000000002", hashed_password=driver_password, role=UserRole.driver,
+                 name="Priya Sharma",    driver_id=drivers[1].id),
+            User(phone="9000000003", hashed_password=driver_password, role=UserRole.driver,
+                 name="Mohammed Farhan", driver_id=drivers[2].id),
+            # Hub owners — phones 9000000004-6 linked to first 3 hub rows
+            User(phone="9000000004", hashed_password=hub_password, role=UserRole.hub_owner,
+                 name="Ramesh Kumar",   hub_id=hubs[0].id),
+            User(phone="9000000005", hashed_password=hub_password, role=UserRole.hub_owner,
+                 name="Latha Devi",     hub_id=hubs[1].id),
+            User(phone="9000000006", hashed_password=hub_password, role=UserRole.hub_owner,
+                 name="Dr. Venkat Rao", hub_id=hubs[2].id),
+        ]
+        for u in seed_users:
+            db.add(u)
+        await db.commit()
+
+        print("✅ Seed complete: 5 drivers, 8 hubs, 50 deliveries, 6 users")
 
 
 if __name__ == "__main__":

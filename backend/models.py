@@ -10,6 +10,11 @@ import enum
 from backend.database import Base
 
 
+class UserRole(str, enum.Enum):
+    driver = "driver"
+    hub_owner = "hub_owner"
+
+
 class DeliveryStatus(str, enum.Enum):
     en_route = "en_route"
     arrived = "arrived"
@@ -40,6 +45,7 @@ class Driver(Base):
     trust_score = Column(Integer, default=80)
     phone = Column(String(20))
     vehicle = Column(String(50))
+    fcm_token = Column(String(255), nullable=True)
 
     deliveries = relationship("Delivery", back_populates="driver")
 
@@ -95,3 +101,15 @@ class HubBroadcast(Base):
 
     delivery = relationship("Delivery", back_populates="broadcast")
     hub = relationship("Hub", back_populates="broadcasts")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    phone = Column(String(20), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    role = Column(SAEnum(UserRole), nullable=False)
+    name = Column(String(100), nullable=False)
+    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    hub_id = Column(Integer, ForeignKey("hubs.id"), nullable=True)

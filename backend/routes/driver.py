@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
-from datetime import datetime, date
+from sqlalchemy import select
 
+from backend.auth import get_current_user
 from backend.database import get_db
-from backend.models import Driver, Delivery, DeliveryStatus
-from backend.schemas import DriverScore, DeliveryOut
+from backend.models import Driver, Delivery, DeliveryStatus, User
+from backend.schemas import DriverScore, DeliveryOut, FCMTokenRequest
 
 router = APIRouter(prefix="/driver", tags=["driver"])
 
@@ -31,8 +33,8 @@ async def get_driver_score(driver_id: int, db: AsyncSession = Depends(get_db)):
             "id": d.id,
             "order_id": d.order_id,
             "address": d.address,
-            "status": d.status.value if hasattr(d.status, 'value') else d.status,
-            "package_size": d.package_size.value if hasattr(d.package_size, 'value') else d.package_size,
+            "status": d.status.value if hasattr(d.status, "value") else d.status,
+            "package_size": d.package_size.value if hasattr(d.package_size, "value") else d.package_size,
             "created_at": d.created_at.isoformat(),
         }
         for d in recent
@@ -59,3 +61,19 @@ async def get_active_delivery(driver_id: int, db: AsyncSession = Depends(get_db)
     )
     delivery = result.scalar_one_or_none()
     return delivery
+
+
+@router.post("/fcm-token")
+async def register_fcm_token(
+    req: FCMTokenRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Driver).where(Driver.id == req.driver_id))
+    driver = result.scalar_one_or_none()
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    driver.fcm_token = req.fcm_token
+    await db.commit()
+    return {"success": True}

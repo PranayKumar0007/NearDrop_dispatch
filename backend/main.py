@@ -1,11 +1,29 @@
+from __future__ import annotations
+
 import json
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from backend.database import init_db
 from backend.websocket_manager import manager
 from backend.routes import delivery, hubs, driver, dashboard
+from backend.routes import auth as auth_router
+from backend.routes import voice as voice_router
+
+logger = logging.getLogger(__name__)
+
+# Paths that bypass JWT validation
+_OPEN_PREFIXES = (
+    "/health",
+    "/auth/",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+)
 
 
 @asynccontextmanager
@@ -17,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NearDrop API",
     description="Intelligent last-mile delivery recovery platform",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -29,6 +47,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def jwt_middleware(request: Request, call_next):
+    path = request.url.path
+
+    # Skip auth for open paths and WebSocket upgrades
+    if any(path.startswith(p) for p in _OPEN_PREFIXES) or path.startswith("/ws"):
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Not authenticated"},
+        )
+
+    token = auth_header[7:]
+    try:
+        from backend.auth import decode_token
+        decode_token(token)
+    except Exception:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or expired token"},
+        )
+
+    return await call_next(request)
+
+
+# Auth and voice first (open or semi-open)
+app.include_router(auth_router.router)
+app.include_router(voice_router.router)
+
+# Core business routes (all protected by middleware above)
 app.include_router(delivery.router)
 app.include_router(hubs.router)
 app.include_router(driver.router)
@@ -41,7 +93,6 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            # Echo back as ping/pong
             await manager.send_personal_message(
                 json.dumps({"type": "pong", "data": {}}), websocket
             )
@@ -51,4 +102,4 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "NearDrop API"}
+    return {"status": "ok", "service": "NearDrop API", "version": "2.0.0"}

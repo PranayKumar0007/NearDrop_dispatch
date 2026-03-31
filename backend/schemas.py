@@ -133,3 +133,35 @@ class LeaderboardEntry(BaseModel):
     deliveries_completed: int
     trust_score: int
     trend: str  # "up" | "down" | "stable"
+
+
+# --- Auth ---
+class LoginRequest(BaseModel):
+    phone: str
+    password: str
+    role: str  # "driver" | "hub_owner"
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: int
+    role: str
+    name: str
+
+
+class UserProfile(BaseModel):
+    user_id: int
+    role: str
+    name: str
+    phone: str
+
+
+class FCMTokenRequest(BaseModel):
+    driver_id: int
+    fcm_token: str
+
+
+class DeliveryCompleteResponse(BaseModel):
+    success: bool
+    delivery_id: int

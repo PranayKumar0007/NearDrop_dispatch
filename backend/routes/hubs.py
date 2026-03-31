@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import asyncio
 import math
 import random
 import string
@@ -8,6 +11,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from backend.database import get_db
+from backend.services import fcm as fcm_service
 from backend.models import Hub, HubBroadcast, Delivery
 from backend.schemas import HubOut, HubAcceptRequest, HubAcceptResponse, HubStats, HubBroadcastOut, DeliveryOut
 
@@ -141,6 +145,23 @@ async def accept_broadcast(req: HubAcceptRequest, db: AsyncSession = Depends(get
         hub.current_load += 1
 
     await db.commit()
+
+    # Fire-and-forget FCM push to driver when hub accepts
+    if broadcast:
+        from backend.models import Delivery, Driver
+        delivery_result = await db.execute(select(Delivery).where(Delivery.id == broadcast.delivery_id))
+        delivery = delivery_result.scalar_one_or_none()
+        if delivery:
+            driver_result = await db.execute(select(Driver).where(Driver.id == delivery.driver_id))
+            driver = driver_result.scalar_one_or_none()
+            if driver and driver.fcm_token:
+                asyncio.ensure_future(
+                    fcm_service.send_hub_accepted_to_driver(
+                        fcm_token=driver.fcm_token,
+                        pickup_code=pickup_code,
+                        hub_name=hub.name if hub else "Hub",
+                    )
+                )
 
     return HubAcceptResponse(
         success=True,
