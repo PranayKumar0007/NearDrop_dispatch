@@ -214,7 +214,7 @@ async def verify_otp(
         raise HTTPException(status_code=404, detail="Delivery not found")
 
     if not delivery.hub_otp:
-        raise HTTPException(status_code=400, detail="No OTP generated for this delivery")
+        return OTPVerifyResponse(verified=False, message="No OTP has been generated for this delivery")
 
     # Check expiry (48 hours)
     if delivery.hub_otp_sent_at is None or \
@@ -250,9 +250,6 @@ async def resend_otp(
     if not delivery:
         raise HTTPException(status_code=404, detail="Delivery not found")
 
-    if not delivery.customer_email:
-        raise HTTPException(status_code=400, detail="No customer email on file for this delivery")
-
     # Find the hub that accepted this delivery
     hub_name = "NearDrop Hub"
     hub_address = ""
@@ -269,15 +266,17 @@ async def resend_otp(
     delivery.hub_otp_verified = False
     await db.commit()
 
-    from services.email_service import send_otp_email
-    background_tasks.add_task(
-        send_otp_email,
-        customer_email=delivery.customer_email,
-        customer_name=delivery.recipient_name or "Customer",
-        otp=new_otp,
-        hub_name=hub_name,
-        hub_address=hub_address,
-        package_id=delivery.order_id or str(delivery.id),
-    )
+    if delivery.customer_email:
+        from services.email_service import send_otp_email
+        background_tasks.add_task(
+            send_otp_email,
+            customer_email=delivery.customer_email,
+            customer_name=delivery.recipient_name or "Customer",
+            otp=new_otp,
+            hub_name=hub_name,
+            hub_address=hub_address,
+            package_id=delivery.order_id or str(delivery.id),
+        )
+        return {"success": True, "message": "New OTP sent to customer"}
 
-    return {"success": True, "message": "New OTP sent to customer"}
+    return {"success": True, "message": "New OTP generated (no customer email on file)"}

@@ -190,23 +190,24 @@ async def accept_broadcast(
         delivery_result = await db.execute(select(Delivery).where(Delivery.id == broadcast.delivery_id))
         delivery = delivery_result.scalar_one_or_none()
 
-        if delivery and delivery.customer_email:
+        if delivery:
             new_otp = ''.join(random.choices(string.digits, k=6))
             delivery.hub_otp = new_otp
             delivery.hub_otp_sent_at = datetime.utcnow()
             delivery.hub_otp_verified = False
             await db.commit()
 
-            from services.email_service import send_otp_email
-            background_tasks.add_task(
-                send_otp_email,
-                customer_email=delivery.customer_email,
-                customer_name=delivery.recipient_name or "Customer",
-                otp=new_otp,
-                hub_name=hub.name if hub else "NearDrop Hub",
-                hub_address=f"{hub.lat:.4f}, {hub.lng:.4f}" if hub else "",
-                package_id=delivery.order_id or str(delivery.id),
-            )
+            if delivery.customer_email:
+                from services.email_service import send_otp_email
+                background_tasks.add_task(
+                    send_otp_email,
+                    customer_email=delivery.customer_email,
+                    customer_name=delivery.recipient_name or "Customer",
+                    otp=new_otp,
+                    hub_name=hub.name if hub else "NearDrop Hub",
+                    hub_address=f"{hub.lat:.4f}, {hub.lng:.4f}" if hub else "",
+                    package_id=delivery.order_id or str(delivery.id),
+                )
 
         # FCM push to driver
         if delivery:

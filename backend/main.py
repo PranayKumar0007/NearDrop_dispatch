@@ -40,13 +40,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception: %s", exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.middleware("http")
@@ -75,6 +73,18 @@ async def jwt_middleware(request: Request, call_next):
 
     return await call_next(request)
 
+
+# CORSMiddleware must be added AFTER jwt_middleware so it becomes the outermost
+# layer. Starlette applies middlewares last-in = outermost, meaning this one
+# processes every request first (sets CORS headers) and every response last
+# (including 401s from jwt_middleware).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Auth and voice first (open or semi-open)
 app.include_router(auth_router.router)
