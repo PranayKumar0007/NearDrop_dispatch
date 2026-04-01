@@ -22,6 +22,8 @@
  */
 
 import type { Incident, KPIStat, MapMarker } from '../types/dispatcher.types';
+import { offsetOverlappingMarkers } from '../utils/mapOffsets';
+import { findNearestHub } from '../utils/routePaths';
 
 // ─── Mock Incidents (single source of truth for all coordinates) ──────────────
 //
@@ -40,7 +42,7 @@ export const mockIncidents: Incident[] = [
     coordinates:       { lat: 17.4102, lng: 78.4482 },
     driverCoordinates: { lat: 17.4160, lng: 78.4410 },
     timestamp: '2026-04-01T09:12:00Z',
-    status: 'Pending',
+    status: 'PENDING',
     failureReason: 'Customer not available',
   },
   {
@@ -51,7 +53,7 @@ export const mockIncidents: Incident[] = [
     coordinates:       { lat: 17.4325, lng: 78.4071 },
     driverCoordinates: { lat: 17.4450, lng: 78.4100 },
     timestamp: '2026-04-01T08:45:00Z',
-    status: 'Escalated',
+    status: 'ESCALATED',
     failureReason: 'Wrong address provided',
   },
   {
@@ -62,7 +64,7 @@ export const mockIncidents: Incident[] = [
     coordinates:       { lat: 17.4401, lng: 78.3489 },
     driverCoordinates: { lat: 17.4430, lng: 78.3520 },
     timestamp: '2026-04-01T08:20:00Z',
-    status: 'Resolved',
+    status: 'RESOLVED',
     failureReason: 'Package damaged in transit',
   },
   {
@@ -73,7 +75,7 @@ export const mockIncidents: Incident[] = [
     coordinates:       { lat: 17.4600, lng: 78.3626 },
     driverCoordinates: { lat: 17.4650, lng: 78.3680 },
     timestamp: '2026-04-01T09:30:00Z',
-    status: 'Pending',
+    status: 'PENDING',
     failureReason: 'Delivery address locked',
   },
   {
@@ -84,7 +86,7 @@ export const mockIncidents: Incident[] = [
     coordinates:       { lat: 17.4485, lng: 78.3908 },
     driverCoordinates: { lat: 17.4510, lng: 78.3950 },
     timestamp: '2026-04-01T07:58:00Z',
-    status: 'Resolved',
+    status: 'RESOLVED',
     failureReason: 'Package refused by recipient',
   },
   {
@@ -95,7 +97,7 @@ export const mockIncidents: Incident[] = [
     coordinates:       { lat: 17.4849, lng: 78.4138 },
     driverCoordinates: { lat: 17.4900, lng: 78.4180 },
     timestamp: '2026-04-01T10:05:00Z',
-    status: 'Pending',
+    status: 'PENDING',
     failureReason: 'Driver vehicle breakdown',
   },
   {
@@ -106,7 +108,7 @@ export const mockIncidents: Incident[] = [
     coordinates:       { lat: 17.4399, lng: 78.4983 },
     driverCoordinates: { lat: 17.4480, lng: 78.5050 },
     timestamp: '2026-04-01T09:50:00Z',
-    status: 'Escalated',
+    status: 'ESCALATED',
     failureReason: 'Attempted 3 times, no response',
   },
   {
@@ -117,7 +119,7 @@ export const mockIncidents: Incident[] = [
     coordinates:       { lat: 17.3483, lng: 78.5481 },
     driverCoordinates: { lat: 17.3530, lng: 78.5520 },
     timestamp: '2026-04-01T10:15:00Z',
-    status: 'Pending',
+    status: 'PENDING',
     failureReason: 'Gate locked, no intercom',
   },
 ];
@@ -165,7 +167,7 @@ export const mockKPIStats: KPIStat[] = [
 // Hubs are fixed locations. They are the only markers typed by hand here,
 // because they represent physical infrastructure, not dynamic incidents.
 
-const mockHubs: MapMarker[] = [
+export const mockHubs: MapMarker[] = [
   {
     id: 'hub-secunderabad',
     type: 'hub',
@@ -191,7 +193,7 @@ const mockHubs: MapMarker[] = [
 // To remove it: change its status to 'Resolved'.
 // You never need to touch this block.
 
-const ACTIVE_STATUSES: Incident['status'][] = ['Pending', 'Escalated'];
+const ACTIVE_STATUSES: Incident['status'][] = ['NEW', 'PENDING', 'ASSIGNED', 'IN_PROGRESS', 'ESCALATED'];
 
 function deriveMarkersFromIncidents(incidents: Incident[]): MapMarker[] {
   const active = incidents.filter((i) => ACTIVE_STATUSES.includes(i.status));
@@ -202,6 +204,9 @@ function deriveMarkersFromIncidents(incidents: Incident[]): MapMarker[] {
     label: `Failed Delivery ${i.deliveryId}`,
     coordinates: i.coordinates, // ← directly from incident, never duplicated
     description: `${i.failureReason ?? 'Delivery failed'} — ${i.location}`,
+    deliveryId: i.deliveryId,
+    status: i.status,
+    assignedHubId: findNearestHub(i.coordinates).id,
   }));
 
   const driverMarkers: MapMarker[] = active
@@ -212,9 +217,12 @@ function deriveMarkersFromIncidents(incidents: Incident[]): MapMarker[] {
       label: `Driver ${i.driverId}`,
       coordinates: i.driverCoordinates!,
       description: `Handling ${i.deliveryId} — ${i.location}`,
+      deliveryId: i.deliveryId,
+      status: i.status,
+      assignedHubId: findNearestHub(i.coordinates).id,
     }));
 
-  return [...driverMarkers, ...failedMarkers, ...mockHubs];
+  return offsetOverlappingMarkers([...driverMarkers, ...failedMarkers, ...mockHubs]);
 }
 
 export const mockMapMarkers: MapMarker[] = deriveMarkersFromIncidents(mockIncidents);

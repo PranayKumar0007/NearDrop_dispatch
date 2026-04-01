@@ -17,7 +17,7 @@ export const KPICard: React.FC<KPICardProps> = ({ stat }) => {
   return (
     <div
       id={`kpi-card-${stat.id}`}
-      className="bg-white rounded-2xl p-6 shadow-sm border hover:shadow-md hover:-translate-y-0.5 cursor-default"
+      className="bg-white rounded-2xl p-6 shadow-sm border transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:border-blue-200 cursor-default"
       style={{ borderColor: '#e2e8f0' }}
     >
       {/* Icon + Trend */}

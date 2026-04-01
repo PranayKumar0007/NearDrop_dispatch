@@ -3,7 +3,7 @@ import { IncidentTable } from '../components/incidents/IncidentTable';
 import { useIncidents } from '../hooks/useIncidents';
 
 export const IncidentsPage: React.FC = () => {
-  const { incidents, resolveIncident, escalateIncident, pendingCount, resolvedCount, escalatedCount } = useIncidents();
+  const { incidents, loading, resolveIncident, escalateIncident, autoAssign, pendingCount, assignedCount, escalatedCount } = useIncidents();
 
   return (
     <div className="space-y-6">
@@ -24,9 +24,9 @@ export const IncidentsPage: React.FC = () => {
             <span className="w-2 h-2 rounded-full bg-red-500" />
             <span className="text-xs font-bold text-red-700">{escalatedCount} Escalated</span>
           </div>
-          <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-xs font-bold text-emerald-700">{resolvedCount} Resolved</span>
+          <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 border border-blue-200">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className="text-xs font-bold text-blue-700">{assignedCount} Assigned</span>
           </div>
         </div>
       </div>
@@ -47,8 +47,10 @@ export const IncidentsPage: React.FC = () => {
       {/* Incident Table */}
       <IncidentTable
         incidents={incidents}
+        loading={loading}
         onResolve={resolveIncident}
         onEscalate={escalateIncident}
+        onAutoAssign={autoAssign}
       />
 
       {/* Info Footer */}

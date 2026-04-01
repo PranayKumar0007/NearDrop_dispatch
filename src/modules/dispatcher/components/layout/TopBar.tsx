@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
@@ -10,8 +10,16 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
 export const TopBar: React.FC = () => {
   const location = useLocation();
   const pageInfo = pageTitles[location.pathname] ?? { title: 'Dispatcher', subtitle: 'NearDrop Ops' };
-  const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  
+  const [nowDate, setNowDate] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowDate(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const now = nowDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const today = nowDate.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
     <header
@@ -32,10 +40,19 @@ export const TopBar: React.FC = () => {
 
       {/* Right side controls */}
       <div className="flex items-center gap-4">
+        {/* Sync Status */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span className="text-xs font-semibold text-emerald-700">System Live</span>
+        </div>
+
         {/* Date/Time */}
-        <div className="text-right hidden sm:block">
-          <p className="text-sm font-semibold text-slate-700">{now}</p>
-          <p className="text-xs text-slate-400">{today}</p>
+        <div className="text-right hidden sm:block border-l pl-4" style={{ borderColor: '#e2e8f0' }}>
+          <p className="text-xs font-semibold text-slate-700">Last synced: {now}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{today}</p>
         </div>
 
         {/* Notification bell */}

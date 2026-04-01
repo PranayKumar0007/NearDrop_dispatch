@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { LiveDispatchMap } from '../components/map/LiveDispatchMap';
 import { mockMapMarkers } from '../data/dispatcherMockData';
+// Routing imports removed
+
 import type { Coordinates } from '../types/dispatcher.types';
 
 interface LocationState {
@@ -13,8 +15,22 @@ export const MapPage: React.FC = () => {
   const location = useLocation();
   const state = location.state as LocationState | null;
 
-  const focusCenter = state?.coordinates;
-  const focusIncidentId = state?.focusIncidentId;
+  // Track focus in local state to allow switching from side panel
+  const [manualFocusId, setManualFocusId] = useState<string | undefined>(state?.focusIncidentId);
+  const [manualCenter, setManualCenter] = useState<Coordinates | undefined>(state?.coordinates);
+
+  const focusCenter = manualCenter;
+  const focusIncidentId = manualFocusId;
+
+  // Removed unused routes calculation
+
+  const stats = React.useMemo(() => {
+    return {
+      drivers: mockMapMarkers.filter(m => m.type === 'driver').length,
+      failed: mockMapMarkers.filter(m => m.type === 'failed_delivery').length,
+      hubs: mockMapMarkers.filter(m => m.type === 'hub').length,
+    };
+  }, []);
 
   return (
     <div className="space-y-5">
@@ -41,9 +57,9 @@ export const MapPage: React.FC = () => {
       {/* Stats Row */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { icon: '🚗', label: 'Active Drivers', value: '2', color: '#3b82f6' },
-          { icon: '📦', label: 'Failed Points', value: '2', color: '#ef4444' },
-          { icon: '🏢', label: 'Nearby Hubs', value: '2', color: '#10b981' },
+          { icon: '🚗', label: 'Active Drivers', value: stats.drivers, color: '#3b82f6' },
+          { icon: '📦', label: 'Failed Points', value: stats.failed, color: '#ef4444' },
+          { icon: '🏢', label: 'Nearby Hubs', value: stats.hubs, color: '#10b981' },
         ].map(({ icon, label, value, color }) => (
           <div key={label} className="bg-white rounded-xl px-4 py-3 shadow-sm border flex items-center gap-3" style={{ borderColor: '#e2e8f0' }}>
             <span className="text-xl">{icon}</span>
@@ -61,7 +77,8 @@ export const MapPage: React.FC = () => {
         <LiveDispatchMap
           markers={mockMapMarkers}
           focusCenter={focusCenter}
-          focusZoom={15}
+          focusZoom={focusCenter ? 16 : 13}
+          focusedIncidentId={focusIncidentId}
           className="flex-1"
         />
 
@@ -69,6 +86,7 @@ export const MapPage: React.FC = () => {
         <div className="w-64 bg-white rounded-2xl shadow-sm border p-4 flex flex-col gap-3 overflow-y-auto" style={{ borderColor: '#e2e8f0' }}>
           <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Active Markers</h3>
           {mockMapMarkers.map((marker) => {
+            const isSelected = focusIncidentId === marker.id.replace('driver-', '').replace('failed-', '');
             const typeConfig = {
               driver: { color: '#3b82f6', icon: '🚗' },
               failed_delivery: { color: '#ef4444', icon: '📦' },
@@ -76,27 +94,72 @@ export const MapPage: React.FC = () => {
             }[marker.type];
 
             return (
-              <div
+              <button
                 key={marker.id}
-                className="rounded-xl p-3 border hover:shadow-sm"
-                style={{ borderColor: '#f1f5f9', background: '#fafafa' }}
+                onClick={() => {
+                  const incId = marker.id.replace('driver-', '').replace('failed-', '');
+                  setManualFocusId(incId);
+                  setManualCenter(marker.coordinates);
+                }}
+                className={`w-full text-left rounded-xl p-3 border transition-all duration-200 cursor-pointer ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-50/80 shadow-md ring-1 ring-blue-200'
+                    : 'border-slate-100 bg-slate-50/50 hover:border-slate-300'
+                }`}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">{typeConfig.icon}</span>
-                  <p className="text-xs font-semibold text-slate-700 leading-tight">{marker.label}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{typeConfig.icon}</span>
+                    <p className="text-xs font-bold text-slate-800 leading-tight">
+                      {marker.label}
+                      {marker.deliveryId && <span className="text-slate-500 font-normal ml-1">({marker.deliveryId})</span>}
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <span className="text-[9px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded uppercase tracking-tighter animate-pulse">
+                      Tracking
+                    </span>
+                  )}
                 </div>
-                {marker.description && (
-                  <p className="text-xs text-slate-400 ml-6 leading-tight">{marker.description}</p>
+                
+                {marker.status && (
+                  <div className="flex items-center gap-1.5 ml-6 mb-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${marker.status === 'Resolved' ? 'bg-emerald-500' : marker.status === 'Escalated' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{marker.status}</p>
+                  </div>
                 )}
-                <p className="text-xs mt-1 ml-6 font-mono" style={{ color: typeConfig.color }}>
-                  {marker.coordinates.lat.toFixed(3)}°, {marker.coordinates.lng.toFixed(3)}°
+
+                {isSelected && marker.type !== 'hub' && (
+                  <div className="ml-6 mb-2 mt-2 p-2 bg-white/60 rounded-lg border border-blue-100">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-[10px] text-slate-500">Estimated ETA</p>
+                      <p className="text-[10px] font-bold text-blue-700">~6 mins</p>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <p className="text-[10px] text-slate-500">Assigned Hub</p>
+                      <p className="text-[10px] font-bold text-slate-700">{marker.assignedHubId?.replace('hub-', '') || 'NearDrop Hub'}</p>
+                    </div>
+                  </div>
+                )}
+
+                {!isSelected && marker.assignedHubId && (
+                  <p className="text-[10px] text-slate-500 ml-6 mb-1">
+                    Hub: <span className="font-semibold text-slate-700">{marker.assignedHubId.replace('hub-', '')}</span>
+                  </p>
+                )}
+                
+                {marker.description && (
+                  <p className="text-[10px] text-slate-400 ml-6 leading-tight mb-1">{marker.description}</p>
+                )}
+                <p className="text-[10px] ml-6 font-mono font-bold" style={{ color: typeConfig.color }}>
+                  {marker.coordinates.lat.toFixed(4)}°, {marker.coordinates.lng.toFixed(4)}°
                 </p>
-              </div>
+              </button>
             );
           })}
 
           <div className="mt-auto pt-3 border-t text-center" style={{ borderColor: '#f1f5f9' }}>
-            <p className="text-xs text-slate-400">Route polylines in V2</p>
+            <p className="text-xs text-emerald-600 font-semibold bg-emerald-50 py-1.5 rounded-lg border border-emerald-100">Live Sync Active</p>
           </div>
         </div>
       </div>

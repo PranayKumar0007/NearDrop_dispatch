@@ -4,9 +4,11 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MapMarker, MarkerType, Coordinates } from '../../types/dispatcher.types';
 import { MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from '../../data/dispatcherMockData';
+// Removed routeWaypoints and RoutingControl imports
+
 
 // ─── Fix Leaflet default marker icons (broken with bundlers) ──────────────────
-delete (L.Icon.Default.prototype as never)._getIconUrl;
+delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
@@ -95,6 +97,14 @@ const MapLegend: React.FC = () => (
         <span className="text-xs text-slate-600">{label}</span>
       </div>
     ))}
+    <div className="flex items-center gap-2 mb-1 mt-2 pt-2 border-t" style={{ borderColor: '#e2e8f0' }}>
+      <div className="w-4 border-t-2 border-dashed border-blue-500" />
+      <span className="text-xs text-slate-600">Driver Path</span>
+    </div>
+    <div className="flex items-center gap-2 mb-1">
+      <div className="w-4 border-t-2 border-dashed border-orange-500" />
+      <span className="text-xs text-slate-600">Reroute Path</span>
+    </div>
   </div>
 );
 
@@ -103,6 +113,7 @@ interface LiveDispatchMapProps {
   markers: MapMarker[];
   focusCenter?: Coordinates;
   focusZoom?: number;
+  focusedIncidentId?: string;
   className?: string;
 }
 
@@ -110,6 +121,7 @@ export const LiveDispatchMap: React.FC<LiveDispatchMapProps> = ({
   markers,
   focusCenter,
   focusZoom = 14,
+  focusedIncidentId,
   className = '',
 }) => {
   const center = focusCenter ?? MAP_DEFAULT_CENTER;
@@ -133,33 +145,45 @@ export const LiveDispatchMap: React.FC<LiveDispatchMapProps> = ({
         <MapFocusController center={center} zoom={zoom} />
 
         {/* Markers */}
-        {markers.map((marker) => (
-          <Marker
-            key={marker.id}
-            position={[marker.coordinates.lat, marker.coordinates.lng]}
-            icon={createCustomIcon(marker.type)}
-          >
-            <Popup>
-              <div style={{ fontFamily: 'Inter, sans-serif', minWidth: '160px' }}>
-                <p style={{ fontWeight: 700, fontSize: '13px', marginBottom: '4px', color: '#0f172a' }}>
-                  {marker.label}
-                </p>
-                {marker.description && (
-                  <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>{marker.description}</p>
-                )}
-                <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-                  {marker.coordinates.lat.toFixed(4)}°N, {marker.coordinates.lng.toFixed(4)}°E
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {markers.map((marker) => {
+          const isFocused = focusedIncidentId && (
+            marker.id === `driver-${focusedIncidentId}` || 
+            marker.id === `failed-${focusedIncidentId}`
+          );
+          const opacity = focusedIncidentId ? (isFocused || marker.type === 'hub' ? 1 : 0.4) : 1;
+
+          return (
+            <Marker
+              key={marker.id}
+              position={[marker.coordinates.lat, marker.coordinates.lng]}
+              icon={createCustomIcon(marker.type)}
+              opacity={opacity}
+              ref={(r) => {
+                if (r && isFocused && marker.type === 'failed_delivery') {
+                  setTimeout(() => r.openPopup(), 400); 
+                }
+              }}
+            >
+              <Popup className="transition-opacity duration-300">
+                <div style={{ fontFamily: 'Inter, sans-serif', minWidth: '160px' }}>
+                  <p style={{ fontWeight: 700, fontSize: '13px', marginBottom: '4px', color: '#0f172a' }}>
+                    {marker.label}
+                  </p>
+                  {marker.description && (
+                    <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>{marker.description}</p>
+                  )}
+                  <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+                    {marker.coordinates.lat.toFixed(4)}°N, {marker.coordinates.lng.toFixed(4)}°E
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
 
       {/* Legend overlay */}
       <MapLegend />
-
-      {/* TODO V2: Add route polylines between driver → failed point → hub */}
     </div>
   );
 };

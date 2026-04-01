@@ -1,63 +1,72 @@
-/**
- * useIncidents.ts
- * ------------------------------------------------------------------
- * Custom hook for managing incident state.
- * V1: Initializes from mock data and manages local state.
- * V2: Replace initial load with fetchIncidents() API call,
- *     and subscribe to live updates via createDispatchSocket().
- * ------------------------------------------------------------------
- */
+import { useEffect, useState } from 'react';
 
-import { useState, useCallback } from 'react';
-import type { Incident, IncidentStatus } from '../types/dispatcher.types';
-import { mockIncidents } from '../data/dispatcherMockData';
+import { useIncidentStore } from '../store/incidentStore';
+import { useRiderStore } from '../store/riderStore';
+import { IncidentsApi } from '../api/incidentsApi';
+import { AssignmentEngine } from '../services/assignmentEngine';
+import { AuditLogger } from '../services/auditLogger';
 
-interface UseIncidentsReturn {
-  incidents: Incident[];
-  updateStatus: (incidentId: string, status: IncidentStatus) => void;
-  resolveIncident: (incidentId: string) => void;
-  escalateIncident: (incidentId: string) => void;
-  pendingCount: number;
-  resolvedCount: number;
-  escalatedCount: number;
-}
+export function useIncidents() {
+  const { incidents, getActiveIncidents, setIncidents, updateIncidentStatus, upsertIncident } = useIncidentStore();
+  const { getOnlineRiders } = useRiderStore();
+  const [loading, setLoading] = useState(true);
 
-export function useIncidents(): UseIncidentsReturn {
-  const [incidents, setIncidents] = useState<Incident[]>(mockIncidents);
+  // Fetch initial state
+  useEffect(() => {
+    let mounted = true;
+    const fetchIncidents = async () => {
+      const resp = await IncidentsApi.getActiveIncidents();
+      if (mounted && resp.success) {
+        setIncidents(resp.data);
+      }
+      if (mounted) setLoading(false);
+    };
+    fetchIncidents();
+    return () => { mounted = false; };
+  }, [setIncidents]);
 
-  /**
-   * Generic status updater — keeps the list sorted with Pending items first.
-   */
-  const updateStatus = useCallback((incidentId: string, status: IncidentStatus) => {
-    setIncidents((prev) =>
-      prev.map((incident) =>
-        incident.id === incidentId ? { ...incident, status } : incident
-      )
-    );
-    // TODO V2: await updateIncidentStatus({ incidentId, status });
-  }, []);
+  const active = getActiveIncidents();
 
-  const resolveIncident = useCallback(
-    (incidentId: string) => updateStatus(incidentId, 'Resolved'),
-    [updateStatus]
-  );
+  const resolveIncident = async (incidentId: string) => {
+    updateIncidentStatus(incidentId, 'RESOLVED');
+    await IncidentsApi.updateIncidentStatus(incidentId, 'RESOLVED');
+    AuditLogger.logAction('RESOLVE', 'dispatcher-1', incidentId, 'Manual resolution applied');
+  };
 
-  const escalateIncident = useCallback(
-    (incidentId: string) => updateStatus(incidentId, 'Escalated'),
-    [updateStatus]
-  );
+  const escalateIncident = async (incidentId: string) => {
+    updateIncidentStatus(incidentId, 'ESCALATED');
+    await IncidentsApi.updateIncidentStatus(incidentId, 'ESCALATED');
+    AuditLogger.logAction('ESCALATE', 'dispatcher-1', incidentId, 'Manual escalation triggered');
+  };
 
-  const pendingCount = incidents.filter((i) => i.status === 'Pending').length;
-  const resolvedCount = incidents.filter((i) => i.status === 'Resolved').length;
-  const escalatedCount = incidents.filter((i) => i.status === 'Escalated').length;
+  const autoAssign = async (incidentId: string) => {
+    const incident = incidents[incidentId];
+    if (!incident) return;
+    
+    // Engine recommends
+    const { recommendedRiderId } = AssignmentEngine.recommendRider(incident, getOnlineRiders());
+    
+    if (recommendedRiderId) {
+      updateIncidentStatus(incidentId, 'ASSIGNED');
+      // Optimistic update
+      upsertIncident({ ...incident, assignedRiderId: recommendedRiderId, status: 'ASSIGNED' });
+      await IncidentsApi.assignIncident(incidentId, recommendedRiderId);
+      AuditLogger.logAction('AUTO_ASSIGN', 'system-engine', incidentId, `Assigned to ${recommendedRiderId}`);
+    }
+  };
+
+  const pendingCount = active.filter((i) => i.status === 'NEW' || i.status === 'PENDING').length;
+  const assignedCount = active.filter((i) => i.status === 'ASSIGNED' || i.status === 'IN_PROGRESS').length;
+  const escalatedCount = active.filter((i) => i.status === 'ESCALATED').length;
 
   return {
-    incidents,
-    updateStatus,
+    incidents: active, // Return array for rendering
+    loading,
     resolveIncident,
     escalateIncident,
+    autoAssign,
     pendingCount,
-    resolvedCount,
+    assignedCount,
     escalatedCount,
   };
 }

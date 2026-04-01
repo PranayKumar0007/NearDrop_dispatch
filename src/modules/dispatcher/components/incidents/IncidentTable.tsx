@@ -4,19 +4,21 @@ import { IncidentRow } from './IncidentRow';
 
 interface IncidentTableProps {
   incidents: Incident[];
+  loading?: boolean;
   onResolve: (id: string) => void;
   onEscalate: (id: string) => void;
+  onAutoAssign: (id: string) => void;
 }
 
 type FilterStatus = 'All' | IncidentStatus;
 
 const columns = ['Delivery ID', 'Driver ID', 'Location', 'Time', 'Status', 'Actions'];
 
-export const IncidentTable: React.FC<IncidentTableProps> = ({ incidents, onResolve, onEscalate }) => {
+export const IncidentTable: React.FC<IncidentTableProps> = ({ incidents, loading, onResolve, onEscalate, onAutoAssign }) => {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filterOptions: FilterStatus[] = ['All', 'Pending', 'Escalated', 'Resolved'];
+  const filterOptions: FilterStatus[] = ['All', 'NEW', 'PENDING', 'ASSIGNED', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED'];
 
   const filtered = incidents
     .filter((i) => filterStatus === 'All' || i.status === filterStatus)
@@ -90,7 +92,19 @@ export const IncidentTable: React.FC<IncidentTableProps> = ({ incidents, onResol
             </tr>
           </thead>
           <tbody>
-            {filtered.length > 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="text-center py-12 text-slate-400">
+                  <div className="flex justify-center items-center gap-2">
+                    <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Loading incidents...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : filtered.length > 0 ? (
               filtered.map((incident, idx) => (
                 <IncidentRow
                   key={incident.id}
@@ -98,6 +112,7 @@ export const IncidentTable: React.FC<IncidentTableProps> = ({ incidents, onResol
                   index={idx}
                   onResolve={onResolve}
                   onEscalate={onEscalate}
+                  onAutoAssign={onAutoAssign}
                 />
               ))
             ) : (

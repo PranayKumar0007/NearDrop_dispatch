@@ -71,6 +71,7 @@ export class DispatchSocket {
   /**
    * Internal message router.
    */
+  // @ts-ignore - Reserved for future WebSocket implementation
   private handleMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data) as SocketEvent;

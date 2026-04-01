@@ -2,12 +2,14 @@ import React from 'react';
 import type { Incident } from '../../types/dispatcher.types';
 import { StatusBadge } from './StatusBadge';
 import { ActionButtons } from './ActionButtons';
+import { SLAEngine } from '../../services/slaEngine';
 
 interface IncidentRowProps {
   incident: Incident;
   index: number;
   onResolve: (id: string) => void;
   onEscalate: (id: string) => void;
+  onAutoAssign: (id: string) => void;
 }
 
 function formatTime(iso: string): string {
@@ -19,7 +21,9 @@ function formatTime(iso: string): string {
   });
 }
 
-export const IncidentRow: React.FC<IncidentRowProps> = ({ incident, index, onResolve, onEscalate }) => {
+export const IncidentRow: React.FC<IncidentRowProps> = ({ incident, index, onResolve, onEscalate, onAutoAssign }) => {
+  const slaStatus = SLAEngine.evaluateSLA(incident);
+
   return (
     <tr
       id={`incident-row-${incident.id}`}
@@ -59,9 +63,24 @@ export const IncidentRow: React.FC<IncidentRowProps> = ({ incident, index, onRes
         )}
       </td>
 
-      {/* Time */}
+      {/* Time & SLA */}
       <td className="px-5 py-4">
-        <span className="text-sm text-slate-600">{formatTime(incident.timestamp)}</span>
+        <span className="text-sm text-slate-600 mb-1 block">{formatTime(incident.timestamp)}</span>
+        {incident.status !== 'RESOLVED' && incident.status !== 'FAILED' && (
+          <div className={`flex items-center gap-1.5 text-xs font-bold ${
+            slaStatus.severity === 'breached' ? 'text-red-600' :
+            slaStatus.severity === 'critical' ? 'text-orange-500 rounded bg-orange-50 px-1 py-0.5 inline-block' :
+            slaStatus.severity === 'warning' ? 'text-amber-500' : 
+            'text-slate-500'
+          }`}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className={slaStatus.severity === 'breached' ? 'animate-pulse' : ''}>
+              {slaStatus.formattedTime} {slaStatus.isBreached ? 'breached' : 'left'}
+            </span>
+          </div>
+        )}
       </td>
 
       {/* Status */}
@@ -75,6 +94,7 @@ export const IncidentRow: React.FC<IncidentRowProps> = ({ incident, index, onRes
           incident={incident}
           onResolve={onResolve}
           onEscalate={onEscalate}
+          onAutoAssign={onAutoAssign}
         />
       </td>
     </tr>
