@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import math
 import random
+import re
 import string
 from datetime import datetime, timedelta
 from typing import Optional
@@ -65,6 +66,8 @@ async def _push_next_or_complete(delivery: Delivery, db: AsyncSession):
                 "package_size": next_delivery.package_size.value if hasattr(next_delivery.package_size, "value") else next_delivery.package_size,
                 "weight_kg": next_delivery.weight_kg,
                 "queue_position": next_delivery.queue_position,
+                "lat": next_delivery.lat,
+                "lng": next_delivery.lng,
             },
         })
     elif delivery.batch_id is not None:
@@ -118,7 +121,7 @@ async def fail_delivery(req: DeliveryFailRequest, db: AsyncSession = Depends(get
     nearby = []
     for hub in all_hubs:
         dist = haversine(req.driver_lat, req.driver_lng, hub.lat, hub.lng)
-        if dist <= 2000:
+        if dist <= 5000:  # Expanded to 5km for better coverage
             nearby.append((dist, hub))
 
     nearby.sort(key=lambda x: x[0])
@@ -142,12 +145,47 @@ async def fail_delivery(req: DeliveryFailRequest, db: AsyncSession = Depends(get
         )
         hub_list.append(hub_out)
 
-    # Create broadcast record
-    broadcast = HubBroadcast(delivery_id=delivery.id)
-    db.add(broadcast)
-    await db.commit()
+    # Auto-assign the closest hub: create broadcast and accept it immediately
+    auto_hub_payload = None
+    if top3:
+        best_dist, best_hub = top3[0]
+        pickup_code = "".join(random.choices(string.digits, k=6))
 
-    # Emit WebSocket event
+        # Create and immediately accept the broadcast
+        broadcast = HubBroadcast(
+            delivery_id=delivery.id,
+            hub_id=best_hub.id,
+            pickup_code=pickup_code,
+            accepted_at=datetime.utcnow(),
+        )
+        db.add(broadcast)
+
+        # Update hub stats
+        best_hub.current_load = (best_hub.current_load or 0) + 1
+        best_hub.today_earnings = (best_hub.today_earnings or 0) + 25.0
+
+        # Generate customer OTP
+        otp = "".join(random.choices(string.digits, k=6))
+        delivery.hub_otp = otp
+        delivery.hub_otp_sent_at = datetime.utcnow()
+        delivery.hub_otp_verified = False
+        delivery.hub_id = best_hub.id
+
+        await db.commit()
+
+        auto_hub_payload = {
+            "id": best_hub.id,
+            "name": best_hub.name,
+            "lat": best_hub.lat,
+            "lng": best_hub.lng,
+            "distance_m": round(best_dist),
+            "eta_minutes": max(1, int(best_dist / 250)),
+            "pickup_code": pickup_code,
+            "hub_type": best_hub.hub_type.value if hasattr(best_hub.hub_type, 'value') else str(best_hub.hub_type),
+            "trust_score": best_hub.trust_score,
+        }
+
+    # Emit WebSocket event with the assigned hub
     driver_result = await db.execute(select(Driver).where(Driver.id == delivery.driver_id))
     driver = driver_result.scalar_one_or_none()
     await manager.broadcast("delivery_failed", {
@@ -156,9 +194,20 @@ async def fail_delivery(req: DeliveryFailRequest, db: AsyncSession = Depends(get
         "driver_name": driver.name if driver else "Unknown",
         "address": delivery.address,
         "hub_count": len(hub_list),
+        "assigned_hub": auto_hub_payload,  # The hub the driver should go to
     })
 
-    # Do NOT advance queue — wait for hub_confirm_pickup
+    # Send email OTP to customer if available
+    if auto_hub_payload and delivery.customer_email:
+        asyncio.ensure_future(
+            _send_hub_otp_email(
+                delivery=delivery,
+                hub=top3[0][1] if top3 else None,
+                otp=delivery.hub_otp or "",
+            )
+        )
+
+    # FCM push to hub owners (best effort)
     for _, hub in top3:
         asyncio.ensure_future(
             fcm_service.send_broadcast_to_hub(
@@ -173,6 +222,23 @@ async def fail_delivery(req: DeliveryFailRequest, db: AsyncSession = Depends(get
         delivery_id=delivery.id,
         nearby_hubs=hub_list,
     )
+
+
+async def _send_hub_otp_email(delivery: Delivery, hub, otp: str):
+    """Best-effort: email OTP to customer after hub assignment."""
+    try:
+        if delivery.customer_email:
+            from services.email_service import send_otp_email
+            await send_otp_email(
+                customer_email=delivery.customer_email,
+                customer_name=delivery.recipient_name or "Customer",
+                otp=otp,
+                hub_name=hub.name if hub else "NearDrop Hub",
+                hub_address=f"{hub.lat:.4f}, {hub.lng:.4f}" if hub else "",
+                package_id=delivery.order_id or str(delivery.id),
+            )
+    except Exception:
+        pass
 
 
 @router.post("/{delivery_id}/complete", response_model=DeliveryCompleteResponse)

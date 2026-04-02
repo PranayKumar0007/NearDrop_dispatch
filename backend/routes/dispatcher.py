@@ -306,11 +306,12 @@ async def get_batch(
     )
 
 
-@router.get("/batches", response_model=list[DispatcherBatchOut])
+@router.get("/batches")
 async def list_batches(
     db: AsyncSession = Depends(get_db),
     _: Dispatcher = Depends(get_current_dispatcher),
 ):
+    """Return all batches from the last 7 days including per-delivery statuses for the Dispatch Center."""
     window_start = datetime.utcnow() - timedelta(days=7)
 
     batches_result = await db.execute(
@@ -324,27 +325,44 @@ async def list_batches(
     output = []
     for batch in batches:
         del_result = await db.execute(
-            select(Delivery).where(Delivery.batch_id == batch.id)
+            select(Delivery)
+            .where(Delivery.batch_id == batch.id)
+            .order_by(Delivery.queue_position)
         )
         batch_deliveries = del_result.scalars().all()
 
         delivered_count = sum(1 for d in batch_deliveries if d.status == DeliveryStatus.delivered)
-        failed_count = sum(1 for d in batch_deliveries if d.status == DeliveryStatus.failed)
-        pending_count = sum(1 for d in batch_deliveries if d.status in (DeliveryStatus.en_route, DeliveryStatus.arrived))
+        failed_count = sum(1 for d in batch_deliveries if d.status in (DeliveryStatus.failed, DeliveryStatus.hub_delivered))
+        pending_count = len(batch_deliveries) - delivered_count - failed_count
 
-        output.append(DispatcherBatchOut(
-            id=batch.id,
-            batch_code=batch.batch_code,
-            driver_id=batch.driver_id,
-            driver_name=batch.driver.name if batch.driver else "Unknown",
-            dispatcher_id=batch.dispatcher_id,
-            assigned_at=batch.assigned_at,
-            total_deliveries=batch.total_deliveries,
-            status=batch.status,
-            delivered_count=delivered_count,
-            failed_count=failed_count,
-            pending_count=pending_count,
-        ))
+        output.append({
+            "id": batch.id,
+            "batch_code": batch.batch_code,
+            "driver_id": batch.driver_id,
+            "driver_name": batch.driver.name if batch.driver else "Unknown",
+            "dispatcher_id": batch.dispatcher_id,
+            "assigned_at": batch.assigned_at.isoformat() if batch.assigned_at else None,
+            "total_deliveries": batch.total_deliveries,
+            "status": batch.status,
+            "delivered_count": delivered_count,
+            "failed_count": failed_count,
+            "pending_count": pending_count,
+            "completed": delivered_count,
+            "failed": failed_count,
+            "deliveries": [
+                {
+                    "id": d.id,
+                    "order_id": d.order_id,
+                    "address": d.address,
+                    "status": d.status.value if hasattr(d.status, "value") else str(d.status),
+                    "recipient_name": d.recipient_name,
+                    "queue_position": d.queue_position,
+                    "lat": d.lat,
+                    "lng": d.lng,
+                }
+                for d in batch_deliveries
+            ],
+        })
     return output
 
 

@@ -17,7 +17,13 @@ void main() async {
 
   // Firebase — graceful fallback if google-services.json not present
   try {
-    await Firebase.initializeApp();
+    if (kIsWeb) {
+      // Firebase on Web requires specific options if not defined in index.html.
+      // Skipping for now as it's not strictly required for local development tasks.
+      debugPrint('Firebase init on Web requires options — skipping.');
+    } else {
+      await Firebase.initializeApp();
+    }
   } catch (e) {
     debugPrint('Firebase init skipped: $e');
   }

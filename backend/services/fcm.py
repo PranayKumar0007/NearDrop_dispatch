@@ -94,3 +94,30 @@ async def send_broadcast_to_hub(
         logger.info(f"FCM broadcast sent to hub token ...{fcm_token[-6:]}")
     except Exception as e:
         logger.warning(f"FCM send_broadcast_to_hub failed: {e}")
+
+
+async def send_notification(
+    token: Optional[str],
+    title: str,
+    body: str,
+    data: Optional[dict] = None,
+) -> None:
+    """Generic push notification. Fire-and-forget."""
+    if not token:
+        return
+    app = _get_app()
+    if app is None:
+        return
+    try:
+        from firebase_admin import messaging
+        message = messaging.Message(
+            notification=messaging.Notification(title=title, body=body),
+            data={k: str(v) for k, v in (data or {}).items()},
+            token=token,
+            android=messaging.AndroidConfig(priority="high"),
+        )
+        messaging.send(message)
+        logger.info(f"FCM notification sent: {title}")
+    except Exception as e:
+        logger.warning(f"FCM send_notification failed: {e}")
+

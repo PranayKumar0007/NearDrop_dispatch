@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from typing import List, Optional
 
 import httpx
@@ -15,6 +16,13 @@ from models import User
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/navigation", tags=["navigation"])
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text: str) -> str:
+    """Remove HTML/XML tags from Azure Maps instruction text."""
+    return _HTML_TAG_RE.sub("", text).strip()
 
 
 class NavigationInstruction(BaseModel):
@@ -146,10 +154,9 @@ async def get_route(
             inst_lat = point.get("latitude", origin_lat)
             inst_lng = point.get("longitude", origin_lng)
             maneuver = inst.get("maneuver", "STRAIGHT")
-            # Strip tagged markup from instruction text
+            # Strip tagged markup from instruction text (Azure uses <roadName> etc.)
             raw_text = inst.get("message", inst.get("combinedMessage", ""))
-            # Azure tagged instructions may include <roadName> etc.; keep plain text
-            inst_text = raw_text
+            inst_text = _strip_html(raw_text)
             dist_m = int(inst.get("routeOffsetInMeters", 0))
 
             parsed_instructions.append({
@@ -185,7 +192,9 @@ async def get_route(
     for inst, poi in zip(parsed_instructions, poi_results):
         text = inst["instruction_text"]
         if poi and not isinstance(poi, Exception) and poi:
-            text = f"{text} — {poi} के पास"
+            text = f"{_strip_html(text)} — {poi} के पास"
+        else:
+            text = _strip_html(text)
         final_instructions.append(
             NavigationInstruction(
                 instruction_text=text,

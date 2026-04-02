@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:neardrop/core/constants/strings.dart';
+import 'package:neardrop/core/services/navigation_engine.dart';
 import 'package:neardrop/core/theme/app_theme.dart';
 import 'package:neardrop/features/driver/models/delivery_model.dart';
 
+/// Bottom sheet shown when a delivery fails.
+/// Lists nearby hubs and lets the driver navigate to one in-app.
+///
+/// If [autoAssignedHub] is provided, it is displayed prominently at the top
+/// as "Auto-Assigned" — the driver can still choose another hub below.
 class HubDropSheet extends StatelessWidget {
   final List<NearbyHubModel> hubs;
   final bool isLoading;
+  final NearbyHubModel? autoAssignedHub;
 
   const HubDropSheet({
     super.key,
     required this.hubs,
     this.isLoading = false,
+    this.autoAssignedHub,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -38,7 +47,7 @@ class HubDropSheet extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          if (isLoading || hubs.isEmpty) ...[
+          if (isLoading || (hubs.isEmpty && autoAssignedHub == null)) ...[
             const SizedBox(height: 16),
             const CircularProgressIndicator(color: AppColors.accent),
             const SizedBox(height: 16),
@@ -53,25 +62,53 @@ class HubDropSheet extends StatelessWidget {
           ] else ...[
             Row(
               children: [
-                const Icon(
-                  Icons.hub_rounded,
-                  color: AppColors.accent,
-                  size: 20,
-                ),
+                const Icon(Icons.hub_rounded, color: AppColors.accent, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  AppStrings.hubFound,
+                  autoAssignedHub != null ? 'Hub Assigned' : AppStrings.hubFound,
                   style: theme.textTheme.titleMedium,
                 ),
                 const Spacer(),
                 Text(
-                  '${hubs.length} nearby',
+                  '${(autoAssignedHub != null ? 1 : 0) + hubs.length} nearby',
                   style: theme.textTheme.bodyMedium,
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            ...hubs.map((hub) => _HubCard(hub: hub)),
+            const SizedBox(height: 12),
+
+            // Auto-assigned hub — highlighted
+            if (autoAssignedHub != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.accent.withOpacity(0.25)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome_rounded,
+                        color: AppColors.accent, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Auto-assigned — navigating automatically',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              _HubCard(hub: autoAssignedHub!, isHighlighted: true),
+            ],
+
+            ...hubs
+                .where((h) => h.id != autoAssignedHub?.id)
+                .map((hub) => _HubCard(hub: hub)),
           ],
         ],
       ),
@@ -79,10 +116,13 @@ class HubDropSheet extends StatelessWidget {
   }
 }
 
+// ── Hub Card ──────────────────────────────────────────────────────────────────
+
 class _HubCard extends StatelessWidget {
   final NearbyHubModel hub;
+  final bool isHighlighted;
 
-  const _HubCard({required this.hub});
+  const _HubCard({required this.hub, this.isHighlighted = false});
 
   IconData get _hubIcon {
     switch (hub.hubType) {
@@ -95,6 +135,49 @@ class _HubCard extends StatelessWidget {
     }
   }
 
+  Future<void> _navigateToHub(BuildContext context) async {
+    // Pop the sheet first
+    Navigator.of(context).pop();
+
+    // Start in-app navigation to hub
+    try {
+      await NavigationEngine().startNavigation(
+        destLat: hub.lat,
+        destLng: hub.lng,
+        customerName: hub.name,
+        onArrival: () {
+          // Will be handled by the active_delivery_screen WS listener
+        },
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.navigation_rounded,
+                    color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Navigating to ${hub.name}'),
+              ],
+            ),
+            backgroundColor: AppColors.accent,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not start navigation — try again'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -103,9 +186,15 @@ class _HubCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.primary,
+          color: isHighlighted
+              ? AppColors.accent.withOpacity(0.06)
+              : AppColors.primary,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(
+            color: isHighlighted
+                ? AppColors.accent.withOpacity(0.3)
+                : AppColors.divider,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,7 +215,11 @@ class _HubCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(hub.name, style: theme.textTheme.titleSmall?.copyWith(color: AppColors.textPrimary)),
+                      Text(
+                        hub.name,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(color: AppColors.textPrimary),
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         '${hub.formattedDistance} · ${hub.etaMinutes} min away',
@@ -142,22 +235,18 @@ class _HubCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  final url =
-                      'https://www.google.com/maps/dir/?api=1&destination=${hub.lat},${hub.lng}&travelmode=driving';
-                  // In production: launch(url) via url_launcher
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Navigating to ${hub.name}'),
-                      backgroundColor: AppColors.accent,
-                    ),
-                  );
-                },
+                onPressed: () => _navigateToHub(context),
                 icon: const Icon(Icons.navigation_rounded, size: 18),
-                label: Text(AppStrings.navigateToHub),
+                label: Text(
+                  isHighlighted ? 'Navigate Now' : AppStrings.navigateToHub,
+                ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   minimumSize: Size.zero,
+                  backgroundColor:
+                      isHighlighted ? AppColors.accent : null,
+                  foregroundColor:
+                      isHighlighted ? Colors.white : null,
                 ),
               ),
             ),
@@ -167,6 +256,8 @@ class _HubCard extends StatelessWidget {
     );
   }
 }
+
+// ── Trust Badge ───────────────────────────────────────────────────────────────
 
 class _TrustBadge extends StatelessWidget {
   final int score;
@@ -196,6 +287,8 @@ class _TrustBadge extends StatelessWidget {
     );
   }
 }
+
+// ── Animated dots ─────────────────────────────────────────────────────────────
 
 class _AnimatedDots extends StatefulWidget {
   const _AnimatedDots();

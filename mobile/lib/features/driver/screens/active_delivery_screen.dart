@@ -71,6 +71,17 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen>
   Map<String, dynamic>? _batchCompleteData;
   late ConfettiController _confettiController;
 
+  // New batch assigned banner
+  bool _showBatchBanner = false;
+  String? _batchBannerMessage;
+
+  // Hub auto-navigation countdown
+  bool _showHubRedirectBanner = false;
+  String? _hubRedirectHubName;
+  int _hubRedirectCountdown = 5;
+  Timer? _hubRedirectTimer;
+  Map<String, dynamic>? _pendingAssignedHub;
+
   // Navigation state
   bool _navigationStarted = false;
   NavigationState? _navState;
@@ -133,14 +144,19 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen>
     _wsSub = sl<WebSocketService>().events.listen((event) {
       if (!mounted) return;
       final type = event['type'] as String?;
-      final driverId = event['driver_id'] as int?;
+      final payload = event['data'] ?? event['payload'] ?? event;
+      final driverId = payload['driver_id'] as int?;
 
       if (driverId != null && driverId != widget.driverId) return;
 
       if (type == 'next_delivery') {
-        _handleNextDelivery(event);
+        _handleNextDelivery(payload);
       } else if (type == 'batch_complete') {
-        _handleBatchComplete(event);
+        _handleBatchComplete(payload);
+      } else if (type == 'batch_assigned') {
+        _handleBatchAssigned(payload);
+      } else if (type == 'delivery_failed') {
+        _handleDeliveryFailedWs(payload);
       }
     });
   }
@@ -165,6 +181,104 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen>
     _successAnimController.reset();
 
     context.read<DeliveryBloc>().add(DeliveryLoadRequested(widget.driverId));
+  }
+
+  void _handleBatchAssigned(Map<String, dynamic> event) {
+    final batchCode = event['batch_code'] as String? ?? '';
+    final total = event['total_deliveries'] as int? ?? 0;
+    final firstDelivery = event['first_delivery'] as Map<String, dynamic>?;
+
+    if (!mounted) return;
+    setState(() {
+      _showBatchBanner = true;
+      _batchBannerMessage = 'New batch $batchCode assigned — $total deliveries';
+    });
+
+    AzureTtsService().speak(
+        'New batch assigned. $total deliveries queued. Starting your route now.');
+
+    // Auto-reload the delivery state to pick up first delivery
+    context.read<DeliveryBloc>().add(DeliveryLoadRequested(widget.driverId));
+
+    // Hide banner after 5 seconds
+    Future<void>.delayed(const Duration(seconds: 5)).then((_) {
+      if (mounted) setState(() => _showBatchBanner = false);
+    });
+  }
+
+  void _handleDeliveryFailedWs(Map<String, dynamic> event) {
+    final assignedHub = event['assigned_hub'] as Map<String, dynamic>?;
+    if (assignedHub == null) return; // No hub assigned — show manual sheet
+
+    final hubName = assignedHub['name'] as String? ?? 'Nearby Hub';
+    final hubLat = (assignedHub['lat'] as num?)?.toDouble();
+    final hubLng = (assignedHub['lng'] as num?)?.toDouble();
+    if (hubLat == null || hubLng == null) return;
+
+    if (!mounted) return;
+
+    // Stop current navigation
+    if (_navigationStarted) _stopNavigation();
+
+    setState(() {
+      _showHubRedirectBanner = true;
+      _hubRedirectHubName = hubName;
+      _hubRedirectCountdown = 5;
+      _pendingAssignedHub = assignedHub;
+    });
+
+    AzureTtsService().speak(
+        'Delivery failed. Redirecting to $hubName in 5 seconds.');
+
+    // Count down and auto-start navigation
+    _hubRedirectTimer?.cancel();
+    _hubRedirectTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _hubRedirectCountdown--);
+      if (_hubRedirectCountdown <= 0) {
+        timer.cancel();
+        setState(() => _showHubRedirectBanner = false);
+        _startHubNavigation(hubLat, hubLng, hubName);
+      }
+    });
+  }
+
+  Future<void> _startHubNavigation(
+      double lat, double lng, String hubName) async {
+    setState(() => _navigationStarted = true);
+    await WakelockPlus.enable();
+
+    await NavigationEngine().startNavigation(
+      destLat: lat,
+      destLng: lng,
+      customerName: hubName,
+      onArrival: () {
+        if (!mounted) return;
+        // Show a snack when driver reaches the hub
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Arrived at $hubName — drop the package'),
+          backgroundColor: const Color(0xFF10B981),
+          duration: const Duration(seconds: 8),
+        ));
+      },
+    );
+
+    _navSub = NavigationEngine().stateStream.listen((navState) {
+      if (!mounted) return;
+      setState(() => _navState = navState);
+      if (navState.driverPosition != null) {
+        try {
+          _mapController.move(navState.driverPosition!, 16);
+          // FIX: positive heading rotates map counter-clockwise so driver faces up
+          if (navState.driverHeading != null) {
+            _mapController.rotate(navState.driverHeading!);
+          }
+        } catch (_) {}
+      }
+    });
   }
 
   void _handleBatchComplete(Map<String, dynamic> event) {
@@ -260,7 +374,6 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen>
       customerName: delivery.recipientName ?? 'Customer',
       onArrival: () {
         if (!mounted) return;
-        // Show CustomerCallSheet on arrival
         _showCustomerCallSheet(delivery);
       },
     );
@@ -269,15 +382,12 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen>
       if (!mounted) return;
       setState(() => _navState = navState);
 
-      // Keep map camera centered on driver
       if (navState.driverPosition != null) {
         try {
-          _mapController.move(
-            navState.driverPosition!,
-            16,
-          );
+          _mapController.move(navState.driverPosition!, 16);
+          // FIX: positive heading — map rotates so driver always faces up
           if (navState.driverHeading != null) {
-            _mapController.rotate(-navState.driverHeading!);
+            _mapController.rotate(navState.driverHeading!);
           }
         } catch (_) {}
       }
@@ -366,6 +476,7 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen>
     _wsSub?.cancel();
     _navSub?.cancel();
     _batteryStateSub?.cancel();
+    _hubRedirectTimer?.cancel();
     NavigationEngine().stopNavigation();
     WakelockPlus.disable();
     AzureTtsService().stop();
@@ -437,6 +548,145 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen>
                           size: 64,
                         ),
                       ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Batch assigned banner (slides in from top)
+          if (_showBatchBanner)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Container(
+                  margin: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10B981).withOpacity(0.4),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.assignment_rounded,
+                          color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _batchBannerMessage ?? 'New batch assigned',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Hub redirect countdown banner
+          if (_showHubRedirectBanner)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.6),
+                child: Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                          color: AppColors.warning.withOpacity(0.5), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.warning.withOpacity(0.2),
+                          blurRadius: 24,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.warning.withOpacity(0.15),
+                          ),
+                          child: const Icon(Icons.hub_rounded,
+                              color: AppColors.warning, size: 30),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Delivery Failed',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Redirecting to ${_hubRedirectHubName ?? 'Nearby Hub'}',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        // Countdown circle
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: 56,
+                              height: 56,
+                              child: CircularProgressIndicator(
+                                value: _hubRedirectCountdown / 5,
+                                strokeWidth: 4,
+                                color: AppColors.warning,
+                                backgroundColor:
+                                    AppColors.warning.withOpacity(0.15),
+                              ),
+                            ),
+                            Text(
+                              '$_hubRedirectCountdown',
+                              style: const TextStyle(
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 22,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () {
+                            _hubRedirectTimer?.cancel();
+                            setState(() => _showHubRedirectBanner = false);
+                          },
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -796,9 +1046,16 @@ class _NavigationView extends StatelessWidget {
               if (navState.polyline.isNotEmpty)
                 PolylineLayer(
                   polylines: [
+                    // Glow shadow layer — wider, translucent
                     Polyline(
                       points: navState.polyline,
-                      strokeWidth: 4,
+                      strokeWidth: 12,
+                      color: AppColors.accent.withOpacity(0.22),
+                    ),
+                    // Main route line
+                    Polyline(
+                      points: navState.polyline,
+                      strokeWidth: 6,
                       color: AppColors.accent,
                     ),
                   ],
@@ -807,14 +1064,29 @@ class _NavigationView extends StatelessWidget {
                 markers: [
                   Marker(
                     point: driverPos,
-                    width: 40,
-                    height: 40,
-                    child: Transform.rotate(
-                      angle: (navState.driverHeading ?? 0) * 3.14159 / 180,
-                      child: const Icon(
-                        Icons.navigation_rounded,
-                        color: AppColors.accent,
-                        size: 32,
+                    width: 44,
+                    height: 44,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.accent.withOpacity(0.18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accent.withOpacity(0.35),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Transform.rotate(
+                        // Heading is already in degrees clockwise from North
+                        // Convert to radians for Flutter Transform.rotate
+                        angle: (navState.driverHeading ?? 0) * 3.14159265 / 180,
+                        child: const Icon(
+                          Icons.navigation_rounded,
+                          color: AppColors.accent,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),

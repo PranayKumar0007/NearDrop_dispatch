@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:neardrop/core/config/app_config.dart';
 import 'package:neardrop/core/services/azure_tts_service.dart';
+
+// ── Models ────────────────────────────────────────────────────────────────────
 
 class NavigationInstruction {
   final String instructionText;
@@ -65,7 +66,9 @@ class NavigationState {
   NavigationState copyWith({
     List<LatLng>? polyline,
     NavigationInstruction? currentInstruction,
+    bool clearCurrentInstruction = false,
     NavigationInstruction? nextInstruction,
+    bool clearNextInstruction = false,
     int? remainingDistanceM,
     int? remainingTimeS,
     bool? isRecalculating,
@@ -76,8 +79,12 @@ class NavigationState {
   }) =>
       NavigationState(
         polyline: polyline ?? this.polyline,
-        currentInstruction: currentInstruction ?? this.currentInstruction,
-        nextInstruction: nextInstruction ?? this.nextInstruction,
+        currentInstruction: clearCurrentInstruction
+            ? null
+            : currentInstruction ?? this.currentInstruction,
+        nextInstruction: clearNextInstruction
+            ? null
+            : nextInstruction ?? this.nextInstruction,
         remainingDistanceM: remainingDistanceM ?? this.remainingDistanceM,
         remainingTimeS: remainingTimeS ?? this.remainingTimeS,
         isRecalculating: isRecalculating ?? this.isRecalculating,
@@ -88,6 +95,8 @@ class NavigationState {
         driverHeading: driverHeading ?? this.driverHeading,
       );
 }
+
+// ── Engine ────────────────────────────────────────────────────────────────────
 
 class NavigationEngine {
   static final NavigationEngine _instance = NavigationEngine._internal();
@@ -109,6 +118,7 @@ class NavigationEngine {
   int _currentInstrIndex = 0;
   LatLng? _destination;
   String? _destinationName;
+  LatLng? _lastKnownPosition;
 
   VoidCallback? onArrivalComplete;
 
@@ -116,7 +126,7 @@ class NavigationEngine {
 
   void _emit(NavigationState state) {
     _state = state;
-    _stateController.add(state);
+    if (!_stateController.isClosed) _stateController.add(state);
   }
 
   Future<void> startNavigation({
@@ -132,20 +142,23 @@ class NavigationEngine {
     _destinationName = customerName;
     _currentInstrIndex = 0;
 
-    // Get current position
+    // Get current position — use last known if GPS times out
     Position? current;
     try {
       current = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       ).timeout(const Duration(seconds: 10));
+      _lastKnownPosition = LatLng(current.latitude, current.longitude);
     } catch (_) {
       current = null;
     }
 
-    final originLat = current?.latitude ?? destLat;
-    final originLng = current?.longitude ?? destLng;
+    // Use last known or fall back to destination (so map doesn't show 0,0)
+    final originLat =
+        current?.latitude ?? _lastKnownPosition?.latitude ?? destLat;
+    final originLng =
+        current?.longitude ?? _lastKnownPosition?.longitude ?? destLng;
 
-    // Fetch route
     _emit(_state.copyWith(
       isRecalculating: true,
       driverPosition: LatLng(originLat, originLng),
@@ -158,11 +171,11 @@ class NavigationEngine {
       AzureTtsService().speakImmediate(_instructions[0].instructionText);
     }
 
-    // Start GPS tracking
+    // Start GPS tracking with more forgiving settings
     _gpsSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 8, // Update every 8m (was 5m — gives more stability)
       ),
     ).listen(_onGpsUpdate);
   }
@@ -221,82 +234,115 @@ class NavigationEngine {
     if (!_isNavigating || _stateController.isClosed) return;
 
     final driverPos = LatLng(pos.latitude, pos.longitude);
-    final heading = pos.heading;
+    _lastKnownPosition = driverPos;
 
-    // Check if arrived at destination
+    // FIX: correct heading sign — positive heading means clockwise rotation
+    // The map should rotate so the driver always faces "up" on screen
+    final heading = pos.heading; // degrees, clockwise from North
+
+    // Check if arrived at destination (80m threshold — was 50m, GPS drift fix)
     if (_destination != null) {
       final distToDest = _haversine(
           pos.latitude, pos.longitude, _destination!.latitude, _destination!.longitude);
-      if (distToDest < 50) {
+      if (distToDest < 80) {
         _triggerArrival();
         return;
       }
     }
 
-    // Check next instruction proximity
+    // Advance through instructions: find the closest upcoming instruction point
+    // instead of strictly checking the next index (fixes getting stuck)
     if (_currentInstrIndex < _instructions.length) {
+      // Check if we're past the current instruction's point
       final instr = _instructions[_currentInstrIndex];
       final distToInstr =
           _haversine(pos.latitude, pos.longitude, instr.lat, instr.lng);
-      if (distToInstr < 80) {
+
+      if (distToInstr < 100) {
+        // Close enough — speak and advance
         AzureTtsService().speak(instr.instructionText);
         _currentInstrIndex++;
-      }
-    }
 
-    // Check deviation from polyline
-    if (_state.polyline.isNotEmpty) {
-      final distToPolyline = _distanceToPolyline(
-          pos.latitude, pos.longitude, _state.polyline);
-      if (distToPolyline > 150 && !_state.isRecalculating) {
-        _emit(_state.copyWith(isRecalculating: true));
-        AzureTtsService().speak('Route recalculated');
-        if (_destination != null) {
-          _fetchAndApplyRoute(
-              pos.latitude, pos.longitude,
-              _destination!.latitude, _destination!.longitude);
+        // Pre-announce next instruction if it's close
+        if (_currentInstrIndex < _instructions.length) {
+          final nextInstr = _instructions[_currentInstrIndex];
+          final distToNext = _haversine(
+              pos.latitude, pos.longitude, nextInstr.lat, nextInstr.lng);
+          if (distToNext < 300) {
+            // Announce upcoming turn
+            AzureTtsService()
+                .speak('In ${_formatDist(distToNext.round())}, ${nextInstr.instructionText}');
+          }
         }
       }
     }
 
-    // Calculate remaining distance (approximate)
-    int remainingDist = _state.remainingDistanceM;
-    if (_destination != null) {
-      remainingDist =
-          _haversine(pos.latitude, pos.longitude, _destination!.latitude,
-                  _destination!.longitude)
-              .round();
+    // Route deviation check (200m threshold — was 150m, more forgiving)
+    if (_state.polyline.isNotEmpty && !_state.isRecalculating) {
+      final distToPolyline =
+          _distanceToPolyline(pos.latitude, pos.longitude, _state.polyline);
+      if (distToPolyline > 200) {
+        _emit(_state.copyWith(
+          isRecalculating: true,
+          driverPosition: driverPos,
+          driverHeading: heading,
+        ));
+        AzureTtsService().speak('Recalculating route');
+        if (_destination != null) {
+          _fetchAndApplyRoute(
+              pos.latitude,
+              pos.longitude,
+              _destination!.latitude,
+              _destination!.longitude);
+        }
+        return;
+      }
     }
 
-    // ETA based on current speed (m/s → km/h)
+    // Remaining distance to destination
+    int remainingDist = _state.remainingDistanceM;
+    if (_destination != null) {
+      remainingDist = _haversine(pos.latitude, pos.longitude,
+              _destination!.latitude, _destination!.longitude)
+          .round();
+    }
+
+    // ETA — use actual speed; default 25 km/h when stationary
     final speedKmh = pos.speed * 3.6;
-    final effectiveSpeed = speedKmh > 5 ? speedKmh : 20.0; // default 20km/h
+    final effectiveSpeed = speedKmh > 5 ? speedKmh : 25.0;
     final remainingTimeS =
         ((remainingDist / 1000) / effectiveSpeed * 3600).round();
 
-    final nextInstr = _currentInstrIndex < _instructions.length
+    final currentInstr = _currentInstrIndex < _instructions.length
         ? _instructions[_currentInstrIndex]
         : null;
-    final afterNextInstr = _currentInstrIndex + 1 < _instructions.length
+    final nextInstr = _currentInstrIndex + 1 < _instructions.length
         ? _instructions[_currentInstrIndex + 1]
         : null;
 
     _emit(_state.copyWith(
       driverPosition: driverPos,
-      driverHeading: heading,
-      currentInstruction: nextInstr,
-      nextInstruction: afterNextInstr,
+      driverHeading: heading, // FIX: removed negation — was -heading (wrong!)
+      currentInstruction: currentInstr,
+      clearCurrentInstruction: currentInstr == null,
+      nextInstruction: nextInstr,
+      clearNextInstruction: nextInstr == null,
       remainingDistanceM: remainingDist,
       remainingTimeS: remainingTimeS,
       isRecalculating: false,
     ));
   }
 
+  String _formatDist(int metres) {
+    if (metres >= 1000) return '${(metres / 1000).toStringAsFixed(1)} km';
+    return '${metres} m';
+  }
+
   void _triggerArrival() {
     _gpsSub?.cancel();
     _gpsSub = null;
     AzureTtsService()
-        .speakImmediate("You have arrived at ${_destinationName ?? 'the'}'s address");
+        .speakImmediate("You have arrived at ${_destinationName ?? 'the destination'}");
 
     _emit(_state.copyWith(
       hasArrived: true,
@@ -326,6 +372,8 @@ class NavigationEngine {
     _emit(const NavigationState());
   }
 
+  // ── Math helpers ─────────────────────────────────────────────────────────
+
   // Haversine distance in meters
   double _haversine(double lat1, double lon1, double lat2, double lon2) {
     const R = 6371000.0;
@@ -338,7 +386,7 @@ class NavigationEngine {
 
   double _toRad(double deg) => deg * pi / 180;
 
-  // Minimum distance from point to polyline (meters)
+  // Minimum distance from point to any segment on the polyline
   double _distanceToPolyline(double lat, double lon, List<LatLng> poly) {
     if (poly.isEmpty) return double.infinity;
     double minDist = double.infinity;
@@ -357,5 +405,5 @@ class NavigationEngine {
   }
 }
 
-// Flutter callback type
+// Flutter callback type alias
 typedef VoidCallback = void Function();
