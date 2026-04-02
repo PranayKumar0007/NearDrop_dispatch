@@ -23,8 +23,8 @@ DRIVERS = [
 ]
 
 HUBS = [
-    {"name": "Sri Ram Kirana Store",       "owner_name": "Ramesh Kumar",     "lat": 17.4267, "lng": 78.4486, "hub_type": HubType.kirana,    "trust_score": 91, "today_earnings": 125.0},
-    {"name": "Lakshmi General Store",      "owner_name": "Latha Devi",       "lat": 17.4412, "lng": 78.3761, "hub_type": HubType.kirana,    "trust_score": 87, "today_earnings": 75.0},
+    {"name": "NearDrop Hub — Secunderabad", "owner_name": "Ramesh Kumar",     "lat": 17.4520, "lng": 78.4870, "hub_type": HubType.kirana,    "trust_score": 91, "today_earnings": 125.0},
+    {"name": "NearDrop Hub — Madhapur",      "owner_name": "Latha Devi",       "lat": 17.4490, "lng": 78.3920, "hub_type": HubType.kirana,    "trust_score": 87, "today_earnings": 75.0},
     {"name": "City Pharmacy - Kondapur",   "owner_name": "Dr. Venkat Rao",   "lat": 17.4602, "lng": 78.3548, "hub_type": HubType.pharmacy,  "trust_score": 95, "today_earnings": 200.0},
     {"name": "Vasavi Apartments Reception","owner_name": "Security: Suresh", "lat": 17.4321, "lng": 78.4123, "hub_type": HubType.apartment, "trust_score": 82, "today_earnings": 50.0},
     {"name": "Madhapur Medicals",          "owner_name": "Srinivas Goud",    "lat": 17.4478, "lng": 78.3921, "hub_type": HubType.pharmacy,  "trust_score": 89, "today_earnings": 150.0},
@@ -73,6 +73,67 @@ BATCH_2_DELIVERIES = [
     ("Plot 33, Nanakramguda, Hyderabad 500032",                     17.4278, 78.3619, "Pooja Sharma",    "pooja.s@gmail.com",       "9876543225"),
     ("Flat 201, Prestige Towers, Raidurgam, Hyderabad 500032",      17.4310, 78.3706, "Rajesh Verma",    "rajesh.v@gmail.com",      "9876543226"),
     ("H.No 44, Puppalaguda, Hyderabad 500089",                      17.4100, 78.3780, "Kavya Nair",      "kavya.n@gmail.com",       "9876543227"),
+]
+
+
+# ── Specific Incidents from Dispatcher Portal V2 ─────────────────────────────────
+DISPATCHER_V2_INCIDENTS = [
+    {
+        "order_id": "DEL-2048",
+        "location": "Banjara Hills, Hyderabad",
+        "lat": 17.4102, "lng": 78.4482,
+        "status": DeliveryStatus.failed,
+        "failure_reason": "Customer not available",
+    },
+    {
+        "order_id": "DEL-2051",
+        "location": "Jubilee Hills, Hyderabad",
+        "lat": 17.4325, "lng": 78.4071,
+        "status": DeliveryStatus.failed,
+        "failure_reason": "Wrong address provided",
+    },
+    {
+        "order_id": "DEL-2039",
+        "location": "Gachibowli, Hyderabad",
+        "lat": 17.4401, "lng": 78.3489,
+        "status": DeliveryStatus.delivered,
+        "failure_reason": "Package damaged in transit",
+    },
+    {
+        "order_id": "DEL-2062",
+        "location": "Kondapur, Hyderabad",
+        "lat": 17.4600, "lng": 78.3626,
+        "status": DeliveryStatus.failed,
+        "failure_reason": "Delivery address locked",
+    },
+    {
+        "order_id": "DEL-2075",
+        "location": "Madhapur, Hyderabad",
+        "lat": 17.4485, "lng": 78.3908,
+        "status": DeliveryStatus.delivered,
+        "failure_reason": "Package refused by recipient",
+    },
+    {
+        "order_id": "DEL-2081",
+        "location": "Kukatpally, Hyderabad",
+        "lat": 17.4849, "lng": 78.4138,
+        "status": DeliveryStatus.failed,
+        "failure_reason": "Driver vehicle breakdown",
+    },
+    {
+        "order_id": "DEL-2094",
+        "location": "Secunderabad, Hyderabad",
+        "lat": 17.4399, "lng": 78.4983,
+        "status": DeliveryStatus.failed,
+        "failure_reason": "Attempted 3 times, no response",
+    },
+    {
+        "order_id": "DEL-2103",
+        "location": "LB Nagar, Hyderabad",
+        "lat": 17.3483, "lng": 78.5481,
+        "status": DeliveryStatus.failed,
+        "failure_reason": "Gate locked, no intercom",
+    },
 ]
 
 
@@ -317,9 +378,29 @@ async def seed():
             db.add(u)
         await db.commit()
 
+        # ── Seed specific Dispatcher V2 incidents ─────────────────────────────
+        for inc_data in DISPATCHER_V2_INCIDENTS:
+            driver = random.choice(drivers)
+            delivery = Delivery(
+                driver_id=driver.id,
+                address=inc_data["location"],
+                lat=inc_data["lat"],
+                lng=inc_data["lng"],
+                status=inc_data["status"],
+                failure_reason=inc_data["failure_reason"],
+                order_id=inc_data["order_id"],
+                recipient_name=random.choice(RECIPIENT_NAMES),
+                package_size=random.choice(list(PackageSize)),
+                weight_kg=round(random.uniform(0.5, 5.0), 1),
+                created_at=datetime.utcnow() - timedelta(minutes=random.randint(60, 180)),
+            )
+            db.add(delivery)
+        await db.commit()
+
         print(
             "Seed complete: 5 drivers, 8 hubs, 50 standalone deliveries, "
-            "1 dispatcher, 2 batches (6+8 deliveries), 6 users"
+            "1 dispatcher, 2 batches (6+8 deliveries), 6 users, "
+            f"{len(DISPATCHER_V2_INCIDENTS)} V2 incidents"
         )
 
 

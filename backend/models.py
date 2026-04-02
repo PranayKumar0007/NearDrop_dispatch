@@ -116,6 +116,7 @@ class Delivery(Base):
     delivered_at = Column(DateTime, nullable=True)
     recipient_name = Column(String(100))
     order_id = Column(String(20), unique=True)
+    failure_reason = Column(Text, nullable=True)
 
     # Geocoded coordinates for the delivery address
     lat = Column(Float, nullable=True)
