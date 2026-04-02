@@ -170,7 +170,7 @@ class NavigationEngine {
   Future<void> _fetchAndApplyRoute(
       double originLat, double originLng, double destLat, double destLng) async {
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await _storage.read(key: 'jwt_token');
       final uri = Uri.parse(
         '${AppConfig.baseUrl}/navigation/route'
         '?origin_lat=$originLat&origin_lng=$originLng'

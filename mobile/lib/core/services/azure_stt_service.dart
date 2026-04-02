@@ -38,7 +38,7 @@ class AzureSttService {
     String? azureToken;
     String region = 'eastus';
     try {
-      final authToken = await _storage.read(key: 'auth_token');
+      final authToken = await _storage.read(key: 'jwt_token');
       final resp = await http.get(
         Uri.parse('${AppConfig.baseUrl}/voice/azure-token'),
         headers: {

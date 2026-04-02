@@ -114,7 +114,7 @@ class _BatchAssignmentSheetState extends State<BatchAssignmentSheet> {
     setState(() => _isLoading = true);
     try {
       final token =
-          await const FlutterSecureStorage().read(key: 'auth_token');
+          await const FlutterSecureStorage().read(key: 'jwt_token');
       final resp = await http.post(
         Uri.parse('${AppConfig.baseUrl}/batch/${widget.batchCode}/accept'),
         headers: {
@@ -141,7 +141,7 @@ class _BatchAssignmentSheetState extends State<BatchAssignmentSheet> {
     setState(() => _isLoading = true);
     try {
       final token =
-          await const FlutterSecureStorage().read(key: 'auth_token');
+          await const FlutterSecureStorage().read(key: 'jwt_token');
       final resp = await http.post(
         Uri.parse('${AppConfig.baseUrl}/batch/${widget.batchCode}/reject'),
         headers: {

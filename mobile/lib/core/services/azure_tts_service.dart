@@ -79,7 +79,7 @@ class AzureTtsService {
     if (_cache.containsKey(cacheKey)) return _cache[cacheKey];
 
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await _storage.read(key: 'jwt_token');
       final voice = _defaultVoice(language);
       final response = await http.post(
         Uri.parse('${AppConfig.baseUrl}/tts/synthesize'),

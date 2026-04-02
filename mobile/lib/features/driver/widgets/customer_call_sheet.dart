@@ -83,7 +83,7 @@ class _CustomerCallSheetState extends State<CustomerCallSheet>
     // 1. Get ACS token
     try {
       final token =
-          await const FlutterSecureStorage().read(key: 'auth_token');
+          await const FlutterSecureStorage().read(key: 'jwt_token');
 
       final tokenResp = await http.post(
         Uri.parse('${AppConfig.baseUrl}/call/token'),
@@ -148,7 +148,7 @@ class _CustomerCallSheetState extends State<CustomerCallSheet>
     setState(() => _isLoading = true);
     try {
       final token =
-          await const FlutterSecureStorage().read(key: 'auth_token');
+          await const FlutterSecureStorage().read(key: 'jwt_token');
       final resp = await http.post(
         Uri.parse(
             '${AppConfig.baseUrl}/delivery/${widget.deliveryId}/complete'),
