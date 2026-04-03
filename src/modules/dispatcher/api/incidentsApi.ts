@@ -16,7 +16,7 @@ export const IncidentsApi = {
         deliveryId: d.order_id,
         driverId: String(d.driver_id),
         location: d.address,
-        coordinates: { lat: d.lat || 17.43, lng: d.lng || 78.44 }, // Default to Hyderabad center if missing
+        coordinates: { lat: d.lat || 17.43, lng: d.lng || 78.44 },
         timestamp: d.created_at,
         status: mapStatus(d.status),
         failureReason: d.failure_reason || 'Delivery failed',
