@@ -28,6 +28,7 @@ graph TD
     subgraph "Clients"
         A[📱 Flutter Mobile App<br/>Driver & Hub Owner]
         I[🖥️ Next.js Dispatcher Portal]
+        K[🌐 React Customer Portal<br/>Sender & Receiver]
     end
 
     subgraph "Backend - FastAPI"
@@ -54,6 +55,7 @@ graph TD
     A -->|REST + JWT| B
     A -->|WebSocket| H
     I -->|REST + JWT cookie| B
+    K -->|Public REST| B
     B --> C
     B --> Q
     B --> D
@@ -90,6 +92,12 @@ NearDrop/
 │   ├── components/                 # StatsBar, DriverCard, CSVUploadModal, DeliveryTable, Sidebar
 │   ├── lib/                        # api.ts (typed API helpers), types.ts
 │   └── middleware.ts               # JWT-based route protection
+│
+├── customer_portal/                # Vite + React public portal for senders & receivers
+│   ├── src/
+│   │   ├── components/             # Reusable UI components
+│   │   └── pages/                  # Home, FreightIQ, Tracking, Contact
+│   └── index.css                   # Premium vanilla CSS styling
 │
 ├── mobile/                         # Flutter mobile app (BLoC + Feature-first architecture)
 │   ├── lib/
@@ -185,8 +193,9 @@ The API will be live at `http://localhost:8000`.
 
 ---
 
-### Step 3 — Start the Dispatcher Portal
+### Step 3 — Start the Web Portals
 
+**Start the Dispatcher Portal**
 ```bash
 cd dispatcher
 npm install
@@ -194,7 +203,15 @@ npm run dev
 # Runs at http://localhost:3000
 ```
 
-> The portal proxies all API calls to the FastAPI backend. Ensure the backend is running on port 8000 first.
+**Start the Customer Portal (FreightIQ & Tracking)**
+```bash
+cd customer_portal
+npm install
+npm run dev
+# Runs at http://localhost:5174
+```
+
+> The portals proxy API calls to the FastAPI backend. Ensure the backend is running on port 8000 first, and `GEMINI_API_KEY` is set in `.env` for FreightIQ estimation.
 
 ---
 
@@ -358,6 +375,8 @@ The backend geocodes all addresses concurrently, then runs the nearest-neighbor 
 | `GET` | `/dispatcher/deliveries` | JWT | All deliveries with filtering |
 | `GET` | `/navigation/route` | JWT | Turn-by-turn route between two coordinates |
 | `POST` | `/voice/azure-token` | JWT | Short-lived Azure Speech token for Flutter |
+| `GET` | `/public/track/{id}` | — | Public container tracking — live status without login |
+| `POST` | `/public/freight-iq` | — | Gemini LLM-powered market rate estimation and negotiation |
 | `WS` | `/ws` | — | WebSocket — real-time delivery events |
 | `GET` | `/health` | — | Health check (DB status) |
 
