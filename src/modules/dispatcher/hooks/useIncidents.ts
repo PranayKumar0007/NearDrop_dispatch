@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { useIncidentStore } from '../store/incidentStore';
 import { useRiderStore } from '../store/riderStore';
+import { useCityStore } from '../store/cityStore';
 import { IncidentsApi } from '../api/incidentsApi';
 import { AssignmentEngine } from '../services/assignmentEngine';
 import { AuditLogger } from '../services/auditLogger';
@@ -9,13 +10,15 @@ import { AuditLogger } from '../services/auditLogger';
 export function useIncidents() {
   const { incidents, getActiveIncidents, setIncidents, updateIncidentStatus, upsertIncident } = useIncidentStore();
   const { getOnlineRiders } = useRiderStore();
+  const { selectedCity } = useCityStore();
   const [loading, setLoading] = useState(true);
 
   // Fetch initial state
   useEffect(() => {
     let mounted = true;
     const fetchIncidents = async () => {
-      const resp = await IncidentsApi.getActiveIncidents();
+      setLoading(true);
+      const resp = await IncidentsApi.getActiveIncidents(selectedCity);
       if (mounted && resp.success) {
         setIncidents(resp.data);
       }
@@ -23,7 +26,7 @@ export function useIncidents() {
     };
     fetchIncidents();
     return () => { mounted = false; };
-  }, [setIncidents]);
+  }, [setIncidents, selectedCity]);
 
   const active = getActiveIncidents();
 

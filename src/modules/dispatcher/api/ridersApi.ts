@@ -2,9 +2,11 @@ import { fetchWithAuth } from './apiClient';
 import type { Rider, ApiResponse, RiderStatus } from '../types/dispatcher.types';
 
 export const RidersApi = {
-  getRealtimeFleet: async (): Promise<ApiResponse<Rider[]>> => {
+  getRealtimeFleet: async (city?: string): Promise<ApiResponse<Rider[]>> => {
     try {
-      const response = await fetchWithAuth('/api/dispatcher/drivers');
+      // Append city query param
+      const queryParam = city && city !== 'All Cities' ? `?city=${encodeURIComponent(city)}` : '';
+      const response = await fetchWithAuth(`/api/dispatcher/drivers${queryParam}`);
       if (!response.ok) throw new Error('Failed to fetch drivers');
       const data = await response.json();
       
@@ -12,6 +14,7 @@ export const RidersApi = {
         id: String(d.id),
         name: d.name,
         zone: mapLocationToZone(d.current_lat, d.current_lng),
+        city: d.city || 'Hyderabad', // Default fallback for mocked
         score: d.trust_score,
         status: d.is_active ? 'online' : 'offline',
         load: d.today_assigned,
@@ -20,9 +23,15 @@ export const RidersApi = {
         coordinates: { lat: d.current_lat, lng: d.current_lng }
       }));
 
+      // Map mock fallback
+      let filteredRiders = riders;
+      if (city && city !== 'All Cities') {
+        filteredRiders = filteredRiders.filter(r => r.city.toLowerCase() === city.toLowerCase());
+      }
+
       return {
         success: true,
-        data: riders,
+        data: filteredRiders,
       };
     } catch (error: any) {
       return { success: false, data: [], message: error.message };
@@ -39,6 +48,7 @@ export const RidersApi = {
         id: String(d.id),
         name: d.name,
         zone: mapLocationToZone(d.current_lat, d.current_lng),
+        city: d.city || 'Hyderabad', // Default fallback
         score: d.trust_score,
         status: d.is_active ? 'online' : 'offline',
         load: d.today_assigned,

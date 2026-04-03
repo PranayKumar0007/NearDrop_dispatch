@@ -1,23 +1,25 @@
 import React, { useEffect } from 'react';
 import { useRiderStore } from '../store/riderStore';
+import { useCityStore } from '../store/cityStore';
 import { RidersApi } from '../api/ridersApi';
 import type { RiderStatus } from '../types/dispatcher.types';
 
 export const RidersPage: React.FC = () => {
   const { riders, setRiders } = useRiderStore();
+  const { selectedCity } = useCityStore();
   const riderList = Object.values(riders);
 
   useEffect(() => {
     let mounted = true;
     const fetchRiders = async () => {
-      const resp = await RidersApi.getRealtimeFleet();
+      const resp = await RidersApi.getRealtimeFleet(selectedCity);
       if (mounted && resp.success) {
         setRiders(resp.data);
       }
     };
     fetchRiders();
     return () => { mounted = false; };
-  }, [setRiders]);
+  }, [setRiders, selectedCity]);
 
   const getStatusBadge = (status: RiderStatus) => {
     switch (status) {

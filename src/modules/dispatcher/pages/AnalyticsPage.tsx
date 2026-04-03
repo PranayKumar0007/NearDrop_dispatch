@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAnalyticsStore } from '../store/analyticsStore';
+import { useCityStore } from '../store/cityStore';
 import { AnalyticsApi } from '../api/analyticsApi';
 
 export const AnalyticsPage: React.FC = () => {
@@ -14,14 +15,16 @@ export const AnalyticsPage: React.FC = () => {
     setGlobalMetrics,
   } = useAnalyticsStore();
 
+  const { selectedCity } = useCityStore();
+
   useEffect(() => {
     let mounted = true;
     const fetchAnalytics = async () => {
       // Fetch in parallel for speed
       const [lbResp, fzResp, gmResp] = await Promise.all([
-        AnalyticsApi.getLeaderboard(),
-        AnalyticsApi.getFailureZones(),
-        AnalyticsApi.getGlobalMetrics(),
+        AnalyticsApi.getLeaderboard(selectedCity),
+        AnalyticsApi.getFailureZones(selectedCity),
+        AnalyticsApi.getGlobalMetrics(selectedCity),
       ]);
 
       if (mounted) {
@@ -33,7 +36,7 @@ export const AnalyticsPage: React.FC = () => {
 
     fetchAnalytics();
     return () => { mounted = false; };
-  }, [setLeaderboard, setFailureZones, setGlobalMetrics]);
+  }, [setLeaderboard, setFailureZones, setGlobalMetrics, selectedCity]);
 
   return (
     <div className="space-y-6">

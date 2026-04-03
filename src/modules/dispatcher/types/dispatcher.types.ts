@@ -11,6 +11,13 @@ export type ActionType = 'AUTO_ASSIGN' | 'MANUAL_OVERRIDE' | 'ESCALATE' | 'RESOL
 
 // ─── Core Entities ───────────────────────────────────────────────────────────
 
+export interface City {
+  id: string;
+  name: string;
+  coordinates: Coordinates;
+  zoom: number;
+}
+
 export interface Coordinates {
   lat: number;
   lng: number;
@@ -22,6 +29,7 @@ export interface Incident {
   deliveryId: string;
   driverId: string;
   location: string;
+  city: string; // Dynamic city context
   coordinates: Coordinates;        // Failed delivery point
   driverCoordinates?: Coordinates; // Driver's current position (en route)
   timestamp: string;
@@ -37,6 +45,7 @@ export interface Rider {
   id: string;
   name?: string;
   zone: string;
+  city: string; // Dynamic city context
   score: number; // Delivery/Trust Score (0-100)
   status: RiderStatus;
   load: number;
@@ -51,6 +60,7 @@ export interface Rider {
 export interface Hub {
   id: string;
   zone: string;
+  city: string; // Dynamic city context
   activeLoad: number;
   maxCapacity: number;
   availableSlots: number;
