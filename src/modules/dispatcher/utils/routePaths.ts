@@ -1,5 +1,4 @@
 import type { Coordinates, MapMarker } from '../types/dispatcher.types';
-import { mockHubs } from '../data/dispatcherMockData';
 
 // Calculate straight-line distance (Haversine formula in km)
 function getDistance(c1: Coordinates, c2: Coordinates): number {
@@ -17,11 +16,13 @@ function getDistance(c1: Coordinates, c2: Coordinates): number {
 }
 
 // Find the nearest hub for a given failed delivery coordinate
-export function findNearestHub(coords: Coordinates): MapMarker {
-  let nearest = mockHubs[0];
+export function findNearestHub(coords: Coordinates, hubs: MapMarker[]): MapMarker | null {
+  if (hubs.length === 0) return null;
+  
+  let nearest = hubs[0];
   let minDistance = Infinity;
 
-  mockHubs.forEach((hub) => {
+  hubs.forEach((hub) => {
     const dist = getDistance(coords, hub.coordinates);
     if (dist < minDistance) {
       minDistance = dist;

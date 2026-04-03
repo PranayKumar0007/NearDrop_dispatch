@@ -1,12 +1,66 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KPICard } from '../components/dashboard/KPICard';
 import { StatusBadge } from '../components/incidents/StatusBadge';
-import { mockKPIStats, mockIncidents } from '../data/dispatcherMockData';
+import { useIncidents } from '../hooks/useIncidents';
+import { AnalyticsApi } from '../api/analyticsApi';
+import type { KPIStat } from '../types/dispatcher.types';
 
 export const DashboardPage: React.FC = () => {
-  // Show the 3 most recent incidents on the dashboard summary
-  const recentIncidents = mockIncidents.slice(0, 5);
+  const { incidents, loading: incidentsLoading } = useIncidents();
+  const [stats, setStats] = useState<KPIStat[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const resp = await AnalyticsApi.getGlobalMetrics();
+      if (resp.success) {
+        // Map backend metrics to KPIStat format
+        const kpiData: KPIStat[] = [
+          {
+            id: 'kpi-1',
+            label: 'Success Rate',
+            value: resp.data.rerouteSuccess,
+            unit: '%',
+            trend: 'up',
+            trendValue: 'Live score',
+            icon: '📈',
+          },
+          {
+            id: 'kpi-2',
+            label: 'Incidents Today',
+            value: resp.data.breachCount,
+            trend: 'down',
+            trendValue: 'Active',
+            icon: '⚠️',
+          },
+          {
+            id: 'kpi-3',
+            label: 'Avg Response',
+            value: resp.data.avgResTime,
+            unit: 'min',
+            trend: 'neutral',
+            trendValue: 'Target < 5m',
+            icon: '⏱️',
+          },
+          {
+            id: 'kpi-4',
+            label: 'System Health',
+            value: 98,
+            unit: '%',
+            trend: 'up',
+            icon: '🌐',
+          }
+        ];
+        setStats(kpiData);
+      }
+      setStatsLoading(false);
+    };
+    fetchStats();
+  }, []);
+
+  // Show the 5 most recent incidents
+  const recentIncidents = incidents.slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -51,9 +105,15 @@ export const DashboardPage: React.FC = () => {
       <section>
         <h2 className="text-base font-semibold text-slate-700 mb-4">Key Performance Indicators</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-          {mockKPIStats.map((stat) => (
-            <KPICard key={stat.id} stat={stat} />
-          ))}
+          {statsLoading ? (
+            [1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-32 bg-slate-100 animate-pulse rounded-2xl border border-slate-200" />
+            ))
+          ) : (
+            stats.map((stat) => (
+              <KPICard key={stat.id} stat={stat} />
+            ))
+          )}
         </div>
       </section>
 
@@ -68,23 +128,29 @@ export const DashboardPage: React.FC = () => {
             </Link>
           </div>
           <div className="divide-y" style={{ borderColor: '#f1f5f9' }}>
-            {recentIncidents.map((incident) => (
-              <div key={incident.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/60">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-semibold text-slate-700">{incident.deliveryId}</span>
-                    <StatusBadge status={incident.status} />
+            {incidentsLoading ? (
+              <div className="px-6 py-10 text-center text-slate-400 text-sm">Loading telemetry...</div>
+            ) : recentIncidents.length === 0 ? (
+              <div className="px-6 py-10 text-center text-slate-400 text-sm">No active incidents in your zone.</div>
+            ) : (
+              recentIncidents.map((incident) => (
+                <div key={incident.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/60 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-semibold text-slate-700">{incident.deliveryId}</span>
+                      <StatusBadge status={incident.status} />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">{incident.location} — Driver ID: {incident.driverId}</p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">{incident.location} — {incident.driverId}</p>
+                  <Link
+                    to="/dispatcher/incidents"
+                    className="ml-3 text-xs text-blue-600 font-medium hover:text-blue-800 flex-shrink-0"
+                  >
+                    Manage
+                  </Link>
                 </div>
-                <Link
-                  to="/dispatcher/incidents"
-                  className="ml-3 text-xs text-blue-600 font-medium hover:text-blue-800 flex-shrink-0"
-                >
-                  Manage
-                </Link>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -105,7 +171,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
                 <div
-                  className="h-full rounded-full"
+                  className="h-full rounded-full transition-all duration-1000"
                   style={{ width: `${health}%`, background: color }}
                 />
               </div>

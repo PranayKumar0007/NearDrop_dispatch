@@ -18,12 +18,15 @@
 
 import { Route, Navigate } from 'react-router-dom';
 import { DispatcherShell } from '../components/layout/DispatcherShell';
+import { LoginPage } from '../pages/LoginPage';
+import { AuthGuard } from '../components/auth/AuthGuard';
 import { DashboardPage } from '../pages/DashboardPage';
 import { IncidentsPage } from '../pages/IncidentsPage';
 import { MapPage } from '../pages/MapPage';
 import { RidersPage } from '../pages/RidersPage';
 import { AlertsPage } from '../pages/AlertsPage';
 import { AnalyticsPage } from '../pages/AnalyticsPage';
+import { DispatchCenterPage } from '../pages/DispatchCenterPage';
 
 /**
  * Dispatcher route subtree.
@@ -31,14 +34,25 @@ import { AnalyticsPage } from '../pages/AnalyticsPage';
  * Ready to be composed into a parent router.
  */
 export const dispatcherRoutes = (
-  <Route path="/dispatcher" element={<DispatcherShell />}>
-    <Route index element={<DashboardPage />} />
-    <Route path="incidents" element={<IncidentsPage />} />
-    <Route path="map" element={<MapPage />} />
-    <Route path="riders" element={<RidersPage />} />
-    <Route path="alerts" element={<AlertsPage />} />
-    <Route path="analytics" element={<AnalyticsPage />} />
-    {/* Fallback: redirect unknown sub-paths to dashboard */}
-    <Route path="*" element={<Navigate to="/dispatcher" replace />} />
-  </Route>
+  <>
+    <Route path="/dispatcher/login" element={<LoginPage />} />
+    <Route 
+      path="/dispatcher" 
+      element={
+        <AuthGuard>
+          <DispatcherShell />
+        </AuthGuard>
+      }
+    >
+      <Route index element={<DashboardPage />} />
+      <Route path="incidents" element={<IncidentsPage />} />
+      <Route path="map" element={<MapPage />} />
+      <Route path="riders" element={<RidersPage />} />
+      <Route path="alerts" element={<AlertsPage />} />
+      <Route path="analytics" element={<AnalyticsPage />} />
+      <Route path="dispatch" element={<DispatchCenterPage />} />
+      {/* Fallback: redirect unknown sub-paths to dashboard */}
+      <Route path="*" element={<Navigate to="/dispatcher" replace />} />
+    </Route>
+  </>
 );

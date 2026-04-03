@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MapMarker, MarkerType, Coordinates } from '../../types/dispatcher.types';
-import { MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from '../../data/dispatcherMockData';
+import { MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from '../../constants/mapConstants';
 // Removed routeWaypoints and RoutingControl imports
 
 

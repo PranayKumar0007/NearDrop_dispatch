@@ -53,9 +53,9 @@ export const IncidentsPage: React.FC = () => {
         onAutoAssign={autoAssign}
       />
 
-      {/* Info Footer */}
-      <p className="text-xs text-slate-400 text-center">
-        ⚡ V1 — Actions update local state only. Live backend integration coming in V2.
+      {/* Live Sync Indicator */}
+      <p className="text-xs text-emerald-600 font-semibold text-center py-1">
+        ⚡ Real-time — incident status updates are pushed live via WebSocket
       </p>
     </div>
   );

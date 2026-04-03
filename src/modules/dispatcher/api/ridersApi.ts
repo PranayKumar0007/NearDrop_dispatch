@@ -1,77 +1,64 @@
-import type { Rider, ApiResponse } from '../types/dispatcher.types';
-
-/**
- * Mocking a REST backend for Riders
- */
-
-// Simulated database
-const mockRidersDB: Rider[] = [
-  {
-    id: 'DRV-001',
-    name: 'Ravi Kumar',
-    zone: 'Banjara Hills',
-    score: 96,
-    status: 'online',
-    load: 1,
-    etaToHub: 12,
-    lastActiveTimestamp: new Date().toISOString(),
-    idleSince: undefined,
-    onDeliverySince: undefined,
-    coordinates: { lat: 17.4156, lng: 78.4347 },
-  },
-  {
-    id: 'DRV-002',
-    name: 'Priya Sharma',
-    zone: 'Jubilee Hills',
-    score: 88,
-    status: 'on-delivery',
-    load: 3,
-    currentTask: 'DEL-9921',
-    etaToHub: 25,
-    lastActiveTimestamp: new Date(Date.now() - 120000).toISOString(),
-    onDeliverySince: new Date(Date.now() - 900000).toISOString(),
-    coordinates: { lat: 17.4300, lng: 78.4050 },
-  },
-  {
-    id: 'DRV-003',
-    name: 'Abdul Rehman',
-    zone: 'Madhapur',
-    score: 92,
-    status: 'idle',
-    load: 0,
-    etaToHub: 5,
-    lastActiveTimestamp: new Date().toISOString(),
-    idleSince: new Date(Date.now() - 1800000).toISOString(),
-    coordinates: { lat: 17.4483, lng: 78.3915 },
-  },
-  {
-    id: 'DRV-004',
-    name: 'Sunita Reddy',
-    zone: 'Gachibowli',
-    score: 75,
-    status: 'offline',
-    load: 0,
-    lastActiveTimestamp: new Date(Date.now() - 86400000).toISOString(),
-  },
-];
+import { fetchWithAuth } from './apiClient';
+import type { Rider, ApiResponse, RiderStatus } from '../types/dispatcher.types';
 
 export const RidersApi = {
   getRealtimeFleet: async (): Promise<ApiResponse<Rider[]>> => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    
-    return {
-      success: true,
-      data: [...mockRidersDB],
-    };
+    try {
+      const response = await fetchWithAuth('/api/dispatcher/drivers');
+      if (!response.ok) throw new Error('Failed to fetch drivers');
+      const data = await response.json();
+      
+      const riders: Rider[] = data.map((d: any) => ({
+        id: String(d.id),
+        name: d.name,
+        zone: mapLocationToZone(d.current_lat, d.current_lng),
+        score: d.trust_score,
+        status: d.is_active ? 'online' : 'offline',
+        load: d.today_assigned,
+        etaToHub: 10, // Simulated
+        lastActiveTimestamp: new Date().toISOString(),
+        coordinates: { lat: d.current_lat, lng: d.current_lng }
+      }));
+
+      return {
+        success: true,
+        data: riders,
+      };
+    } catch (error: any) {
+      return { success: false, data: [], message: error.message };
+    }
   },
 
   getRiderById: async (id: string): Promise<ApiResponse<Rider | null>> => {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const rider = mockRidersDB.find((r) => r.id === id) || null;
-    return {
-      success: true,
-      data: rider,
-    };
+    try {
+      const response = await fetchWithAuth(`/api/dispatcher/drivers/${id}`);
+      if (!response.ok) throw new Error('Failed to fetch rider');
+      const d = await response.json();
+      
+      const rider: Rider = {
+        id: String(d.id),
+        name: d.name,
+        zone: mapLocationToZone(d.current_lat, d.current_lng),
+        score: d.trust_score,
+        status: d.is_active ? 'online' : 'offline',
+        load: d.today_assigned,
+        coordinates: { lat: d.current_lat, lng: d.current_lng }
+      };
+
+      return {
+        success: true,
+        data: rider,
+      };
+    } catch {
+      return { success: false, data: null };
+    }
   }
 };
+
+function mapLocationToZone(lat: number, lng: number): string {
+  // Simple check for common Hyderabad zones
+  if (lat > 17.44 && lng < 78.40) return 'Madhapur / HITEC City';
+  if (lat > 17.42 && lng < 78.42) return 'Jubilee Hills';
+  if (lat < 17.42 && lng > 78.43) return 'Banjara Hills';
+  return 'Hyderabad Core';
+}
