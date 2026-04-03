@@ -9,7 +9,7 @@ export type SocketEventHandler<T = any> = (payload: T) => void;
  * Handles real-time telemetry and push events from the FastAPI backend.
  * Implements exponential backoff reconnects and syncs state to Zustand.
  */
-class DispatchSocket {
+class DispatcherSocket {
   private ws: WebSocket | null = null;
   private url: string;
   private handlers: Map<SocketEventType, SocketEventHandler[]> = new Map();
@@ -76,7 +76,14 @@ class DispatchSocket {
   private handleMessage(event: MessageEvent): void {
     useWebsocketStatusStore.getState().recordEvent();
     try {
-      const data = JSON.parse(event.data) as SocketEvent;
+      const raw = JSON.parse(event.data);
+      // Map backend {"type": "...", "data": {...}} to frontend expected format
+      const data = {
+        type: raw.type as SocketEventType,
+        payload: raw.data || raw.payload || {},
+        timestamp: raw.timestamp || new Date().toISOString()
+      } as SocketEvent;
+
       const handlers = this.handlers.get(data.type) || [];
       handlers.forEach(handler => handler(data.payload));
     } catch (e) {
@@ -117,6 +124,6 @@ class DispatchSocket {
 }
 
 // Singleton export
-export const dispatcherSocket = new DispatchSocket(
-  import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/dispatcher'
+export const dispatcherSocket = new DispatcherSocket(
+  import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
 );
