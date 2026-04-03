@@ -81,18 +81,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             _deliveryBloc.add(DeliveryLoadRequested(_user!.userId));
           }
         } else if (type == 'batch_assigned') {
-          final driverId = event['driver_id'] as int?;
+          final data = event['data'] as Map<String, dynamic>? ?? {};
+          final driverId = data['driver_id'] as int?;
           if (driverId != null && driverId != _user?.userId) return;
-          _showBatchAssignedSheet(event);
+          _showBatchAssignedSheet(data);
         }
       });
     }
   }
 
-  void _showBatchAssignedSheet(Map<String, dynamic> event) {
-    final batchCode = event['batch_code'] as String? ?? '';
-    final totalDeliveries = event['total_deliveries'] as int? ?? 0;
-    final deliveries = (event['deliveries'] as List<dynamic>?)
+  void _showBatchAssignedSheet(Map<String, dynamic> data) {
+    final batchCode = data['batch_code'] as String? ?? '';
+    final totalDeliveries = data['total_deliveries'] as int? ?? 0;
+    final deliveries = (data['deliveries'] as List<dynamic>?)
             ?.cast<Map<String, dynamic>>() ??
         [];
 

@@ -293,7 +293,10 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen>
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => HistoryScreen(driverId: widget.driverId),
+          builder: (ctx) => BlocProvider.value(
+            value: context.read<DriverBloc>(),
+            child: HistoryScreen(driverId: widget.driverId),
+          ),
         ),
       );
     });

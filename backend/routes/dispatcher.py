@@ -45,7 +45,8 @@ async def list_drivers(
     _: Dispatcher = Depends(get_current_dispatcher),
 ):
     window_start = datetime.utcnow() - timedelta(days=7)
-    active_threshold = datetime.utcnow() - timedelta(minutes=5)
+    # Relax threshold to 24 hours so seeded drivers show up in the portal
+    active_threshold = datetime.utcnow() - timedelta(hours=24)
 
     result = await db.execute(select(Driver))
     drivers = result.scalars().all()
@@ -169,7 +170,7 @@ async def upload_batch(
             driver_id=driver_id,
             batch_id=batch.id,
             address=row.get("delivery_address", ""),
-            order_id=row.get("delivery_id", ""),
+            order_id=f"{row.get('delivery_id', '')}-{batch.batch_code.split('-')[-1]}-{i + 1}",
             recipient_name=row.get("customer_name", ""),
             customer_email=row.get("customer_email", ""),
             customer_phone=row.get("customer_phone", ""),
@@ -236,6 +237,7 @@ async def upload_batch(
     ]
 
     await manager.broadcast("batch_assigned", {
+        "id": batch.id,
         "driver_id": driver_id,
         "batch_code": batch_code,
         "total_deliveries": len(rows),
@@ -366,80 +368,8 @@ async def list_batches(
     return output
 
 
-# ─── Batch Accept / Reject (driver-facing) ────────────────────────────────────
+# These mobile routes are moved to batch.py to be accessible at /batch/... without prefix.
 
-@router.post("/batch/{batch_code}/accept", response_model=BatchAcceptResponse)
-async def accept_batch(
-    batch_code: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Driver accepts a batch — marks batch active and first delivery en_route."""
-    batch_result = await db.execute(
-        select(DeliveryBatch)
-        .options(selectinload(DeliveryBatch.driver))
-        .where(DeliveryBatch.batch_code == batch_code)
-    )
-    batch = batch_result.scalar_one_or_none()
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
-
-    batch.status = "accepted"
-    db.add(batch)
-
-    # Reload ordered deliveries
-    deliveries_result = await db.execute(
-        select(Delivery)
-        .where(Delivery.batch_id == batch.id)
-        .order_by(Delivery.queue_position)
-    )
-    deliveries = deliveries_result.scalars().all()
-
-    # Mark first delivery as en_route (it likely already is, but be explicit)
-    if deliveries:
-        first = deliveries[0]
-        first.status = DeliveryStatus.en_route
-        db.add(first)
-
-    await db.commit()
-
-    return BatchAcceptResponse(
-        batch_code=batch_code,
-        status="accepted",
-        deliveries=[DispatcherDeliveryOut.model_validate(d) for d in deliveries],
-    )
-
-
-@router.post("/batch/{batch_code}/reject")
-async def reject_batch(
-    batch_code: str,
-    body: BatchRejectRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Driver rejects a batch — marks batch rejected and broadcasts WS event."""
-    batch_result = await db.execute(
-        select(DeliveryBatch)
-        .options(selectinload(DeliveryBatch.driver))
-        .where(DeliveryBatch.batch_code == batch_code)
-    )
-    batch = batch_result.scalar_one_or_none()
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
-
-    batch.status = "rejected"
-    db.add(batch)
-    await db.commit()
-
-    driver_name = batch.driver.name if batch.driver else "Unknown"
-
-    await manager.broadcast("batch_rejected", {
-        "batch_code": batch_code,
-        "driver_name": driver_name,
-        "reason": body.reason,
-    })
-
-    return {"batch_code": batch_code, "status": "rejected"}
 
 
 # ─── Stats ────────────────────────────────────────────────────────────────────
@@ -764,3 +694,27 @@ async def get_hub_history(
             pickup_code=bc.pickup_code,
         ))
     return output
+
+
+@router.delete("/batch/{batch_id}")
+async def delete_batch(
+    batch_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: Dispatcher = Depends(get_current_dispatcher),
+):
+    """Delete a batch and all its associated deliveries."""
+    # Delete deliveries first
+    from sqlalchemy import delete
+    await db.execute(delete(Delivery).where(Delivery.batch_id == batch_id))
+    
+    # Delete the batch itself
+    batch_result = await db.execute(select(DeliveryBatch).where(DeliveryBatch.id == batch_id))
+    batch = batch_result.scalar_one_or_none()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+        
+    await db.delete(batch)
+    await db.commit()
+    
+    return {"success": True, "message": f"Batch {batch_id} deleted"}
+

@@ -23,6 +23,7 @@ from routes import dispatcher as dispatcher_router
 from routes import tts as tts_router
 from routes import navigation as navigation_router
 from routes import calling as calling_router
+from routes import batch as batch_router
 from limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -138,6 +139,7 @@ app.include_router(delivery.router)
 app.include_router(hubs.router)
 app.include_router(driver.router)
 app.include_router(dashboard.router)
+app.include_router(batch_router.router)
 
 # Dispatcher portal routes (additionally protected by require_dispatcher dependency)
 app.include_router(dispatcher_router.router)
