@@ -47,23 +47,26 @@ export const AnalyticsApi = {
     return { success: true, data };
   },
 
-  getGlobalMetrics: async (city?: string): Promise<ApiResponse<{ avgResTime: number; breachCount: number; rerouteSuccess: number; }>> => {
+  getGlobalMetrics: async (city?: string): Promise<ApiResponse<{ avgResTime: number; breachCount: number; rerouteSuccess: number; carbonReduction: number; costSaved: number; }>> => {
     try {
       const queryParam = city && city !== 'All Cities' ? `?city=${encodeURIComponent(city)}` : '';
       const response = await fetchWithAuth(`/api/dispatcher/stats${queryParam}`);
       if (!response.ok) throw new Error('Failed to fetch stats');
       const d = await response.json();
       
+      const rerouteRate = d.success_rate_percent || 0;
       return {
         success: true,
         data: {
           avgResTime: 4.2, // Backend doesn't provide this yet
           breachCount: d.failed_today || 0, // Using failed_today as a proxy for breach
-          rerouteSuccess: d.success_rate_percent || 0,
+          rerouteSuccess: rerouteRate,
+          carbonReduction: d.co2_reduced_percent || 0,
+          costSaved: d.cost_saved || 0,
         },
       };
     } catch (error: any) {
-      return { success: false, data: { avgResTime: 0, breachCount: 0, rerouteSuccess: 0 }, message: error.message };
+      return { success: false, data: { avgResTime: 0, breachCount: 0, rerouteSuccess: 0, carbonReduction: 0, costSaved: 0 }, message: error.message };
     }
   },
 };

@@ -28,6 +28,15 @@ export const MapPage: React.FC = () => {
 
   const [manualFocusId, setManualFocusId] = useState<string | undefined>(state?.focusIncidentId);
   const [manualCenter, setManualCenter] = useState<Coordinates | undefined>(state?.coordinates);
+  const [prevCity, setPrevCity] = useState(selectedCity);
+
+  useEffect(() => {
+    if (selectedCity !== prevCity) {
+      setManualFocusId(undefined);
+      setManualCenter(undefined);
+      setPrevCity(selectedCity);
+    }
+  }, [selectedCity, prevCity]);
 
   useEffect(() => {
     const fetchData = async () => {

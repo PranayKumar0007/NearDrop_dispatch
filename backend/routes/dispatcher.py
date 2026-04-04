@@ -29,6 +29,9 @@ from schemas import (
 )
 from services.azure_maps import geocode_address
 from services.queue_engine import order_delivery_queue
+from services.trust_score_engine import calculate_trust_score
+from services.sustainability_engine import calculate_sustainability
+from services.cost_optimization_engine import calculate_cost_savings
 from websocket_manager import manager
 from services import fcm as fcm_service
 
@@ -83,6 +86,17 @@ async def list_drivers(
         )
         today_failed = failed_result.scalar() or 0
 
+        # Calculate dynamic trust score
+        driver_perf = calculate_trust_score(
+            driver_id=str(driver.id),
+            on_time_completion=min(100.0, (today_completed / (today_assigned or 1)) * 100.0),
+            recovery_success=85.0 if today_completed > 0 else 50.0,
+            sla_adherence=90.0,
+            delivery_confirmation=95.0,
+            heartbeat_reliability=100.0 if is_active else 40.0,
+            historical_score=driver.trust_score
+        )
+
         output.append(DispatcherDriverOut(
             id=driver.id,
             name=driver.name,
@@ -93,7 +107,9 @@ async def list_drivers(
             today_assigned=today_assigned,
             today_completed=today_completed,
             today_failed=today_failed,
-            trust_score=driver.trust_score,
+            trust_score=driver_perf["trust_score"],
+            band=driver_perf["band"],
+            city=driver.city,
         ))
     return output
 
@@ -502,7 +518,26 @@ async def get_dispatcher_stats(
     active_hubs = active_hubs_result.scalar() or 0
 
     success_rate = round(delivered_today / total_assigned * 100, 1) if total_assigned > 0 else 0.0
-    co2_saved = round(hub_rerouted * 0.8, 2)
+
+    avg_km_saved_per_reroute = 4.0
+    avg_empty_trip_km = 6.0
+    idle_time_saved_per_resolved = 0.25 # hours
+
+    km_saved = hub_rerouted * avg_km_saved_per_reroute
+    empty_km_avoided = delivered_today * avg_empty_trip_km
+    baseline_emissions = total_assigned * avg_empty_trip_km * 0.9
+
+    sus_metrics = calculate_sustainability(
+        empty_km_avoided=empty_km_avoided,
+        reroute_km_saved=km_saved,
+        baseline_emissions=baseline_emissions
+    )
+
+    cost_saved = calculate_cost_savings(
+        km_saved=km_saved,
+        sla_penalty_avoided=hub_rerouted,
+        idle_hours_saved=hub_rerouted * idle_time_saved_per_resolved
+    )
 
     return DispatcherStatsOut(
         active_drivers=active_drivers,
@@ -512,7 +547,9 @@ async def get_dispatcher_stats(
         hub_rerouted_today=hub_rerouted,
         pending_today=pending_today,
         success_rate_percent=success_rate,
-        co2_saved_kg=co2_saved,
+        co2_saved_kg=sus_metrics["co2_saved_kg"],
+        co2_reduced_percent=sus_metrics["co2_reduced_percent"],
+        cost_saved=cost_saved,
         active_hubs=active_hubs,
     )
 
@@ -555,6 +592,7 @@ async def list_all_deliveries(
             hub_otp_sent_at=d.hub_otp_sent_at,
             lat=d.lat,
             lng=d.lng,
+            city=d.city,
             created_at=d.created_at,
         ))
     return output
@@ -607,6 +645,7 @@ async def list_hubs(
             today_earnings_inr=hub.today_earnings or 0.0,
             current_packages_held=current_packages_held,
             owner_phone=hub.owner_phone,
+            city=hub.city,
         ))
     return output
 

@@ -1,13 +1,13 @@
 // ─── Enums & State Machines ──────────────────────────────────────────────────
 
-export type IncidentStatus = 'NEW' | 'PENDING' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'FAILED' | 'ESCALATED';
+export type IncidentStatus = 'NEW' | 'PENDING' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'FAILED';
 export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 export type RiderStatus = 'online' | 'offline' | 'idle' | 'on-delivery';
 
 export type HubRiskLevel = 'Safe' | 'Warning' | 'Critical';
 
-export type ActionType = 'AUTO_ASSIGN' | 'MANUAL_OVERRIDE' | 'ESCALATE' | 'RESOLVE' | 'ALERT_ACKNOWLEDGED';
+export type ActionType = 'ASSIGN' | 'RESOLVE' | 'ALERT_ACKNOWLEDGED';
 
 // ─── Core Entities ───────────────────────────────────────────────────────────
 
@@ -47,6 +47,7 @@ export interface Rider {
   zone: string;
   city: string; // Dynamic city context
   score: number; // Delivery/Trust Score (0-100)
+  band?: string;
   status: RiderStatus;
   load: number;
   currentTask?: string;

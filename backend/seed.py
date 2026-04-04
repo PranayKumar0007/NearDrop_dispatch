@@ -1,10 +1,11 @@
 """
-Seed script — generates realistic mock data for Hyderabad.
+Seed script — generates realistic mock data across all 7 supported cities.
 Run from backend/: python seed.py
 """
 import asyncio
 import random
 from datetime import datetime, timedelta
+import string as st
 
 from database import init_db, AsyncSessionLocal
 from models import (
@@ -13,129 +14,96 @@ from models import (
 )
 from auth import hash_password
 
+CITIES = ['Hyderabad', 'Mumbai', 'Chennai', 'Delhi', 'Bengaluru', 'Kolkata']
 
-DRIVERS = [
-    {"name": "Arjun Reddy",      "lat": 17.4239, "lng": 78.4738, "status": DeliveryStatus.en_route,  "trust_score": 94, "vehicle": "Royal Enfield",  "phone": "+91 98765 43210"},
-    {"name": "Priya Sharma",     "lat": 17.4456, "lng": 78.3647, "status": DeliveryStatus.delivered,  "trust_score": 88, "vehicle": "Activa",          "phone": "+91 98765 43211"},
-    {"name": "Mohammed Farhan",  "lat": 17.4123, "lng": 78.4501, "status": DeliveryStatus.failed,     "trust_score": 79, "vehicle": "TVS Jupiter",     "phone": "+91 98765 43212"},
-    {"name": "Sneha Patel",      "lat": 17.4385, "lng": 78.3892, "status": DeliveryStatus.arrived,    "trust_score": 96, "vehicle": "Honda Shine",     "phone": "+91 98765 43213"},
-    {"name": "Karthik Nair",     "lat": 17.4501, "lng": 78.4012, "status": DeliveryStatus.en_route,  "trust_score": 71, "vehicle": "Bajaj Pulsar",    "phone": "+91 98765 43214"},
-]
+CITY_DATA = {
+    'Hyderabad': {
+        'coords': (17.3850, 78.4867),
+        'bounds': {'lat': (17.3500, 17.4800), 'lng': (78.3500, 78.5000)},
+        'addresses': [
+            "Plot 42, Road No.12, Banjara Hills, Hyderabad - 500034",
+            "Flat 3B, Vasavi Towers, Kondapur, Hyderabad - 500084",
+            "H.No 15, Srinagar Colony, Ameerpet, Hyderabad - 500016",
+            "Shop 7, Jubilee Hills Check Post, Hyderabad - 500033",
+            "Plot 88, Madhapur, HITEC City, Hyderabad - 500081",
+        ],
+        'hubs': ["Banjara Hills Hub", "Madhapur Kirana", "Kondapur Pharmacy"]
+    },
+    'Mumbai': {
+        'coords': (19.0760, 72.8777),
+        'bounds': {'lat': (18.9500, 19.2000), 'lng': (72.8000, 72.9000)},
+        'addresses': [
+            "Flat 202, Pali Hill, Bandra West, Mumbai - 400050",
+            "Building 5, Hiranandani Gardens, Powai, Mumbai - 400076",
+            "Shop 12, Colaba Causeway, Mumbai - 400001",
+            "Plot 44, Juhu Tara Road, Mumbai - 400049",
+            "Office 501, Maker Chambers, Nariman Point, Mumbai - 400021",
+        ],
+        'hubs': ["Bandra West Hub", "Powai Smart Point", "Colaba Express"]
+    },
+    'Delhi': {
+        'coords': (28.7041, 77.1025),
+        'bounds': {'lat': (28.5000, 28.7500), 'lng': (77.0500, 77.2500)},
+        'addresses': [
+            "H-Block, Connaught Place, New Delhi - 110001",
+            "Sector 12, Dwarka, Delhi - 110075",
+            "Green Park Extension, New Delhi - 110016",
+            "Pocket B, Sarita Vihar, Delhi - 110076",
+            "Greater Kailash Part 1, New Delhi - 110048",
+        ],
+        'hubs': ["CP Central Hub", "Dwarka Sector 12", "South Delhi Relay"]
+    },
+    'Bengaluru': {
+        'coords': (12.9716, 77.5946),
+        'bounds': {'lat': (12.9000, 13.0500), 'lng': (77.5000, 77.7000)},
+        'addresses': [
+            "100 Ft Road, Indiranagar, Bengaluru - 560038",
+            "4th Block, Koramangala, Bengaluru - 560034",
+            "ITPL Main Road, Whitefield, Bengaluru - 560066",
+            "Lavelle Road, Bengaluru - 560001",
+            "Richmond Town, Bengaluru - 560025",
+        ],
+        'hubs': ["Indiranagar Hub", "Whitefield Ops Center", "Koramangala 4th Block"]
+    },
+    'Chennai': {
+        'coords': (13.0827, 80.2707),
+        'bounds': {'lat': (12.9500, 13.1500), 'lng': (80.1500, 80.3000)},
+        'addresses': [
+            "Poes Garden, Chennai - 600086",
+            "Besant Nagar, Chennai - 600090",
+            "OMR Road, Sholinganallur, Chennai - 600119",
+            "Anna Nagar West, Chennai - 600040",
+            "Nungambakkam High Road, Chennai - 600034",
+        ],
+        'hubs': ["Anna Nagar Hub", "OMR Tech Relay", "Adyar Micro-Hub"]
+    },
+    'Kolkata': {
+        'coords': (22.5726, 88.3639),
+        'bounds': {'lat': (22.4500, 22.6500), 'lng': (88.3000, 88.4500)},
+        'addresses': [
+            "Park Street, Kolkata - 700016",
+            "Salt Lake Sector V, Kolkata - 700091",
+            "Ballygunge Circular Road, Kolkata - 700019",
+            "New Town Action Area 1, Kolkata - 700156",
+            "Alipore, Kolkata - 700027",
+        ],
+        'hubs': ["Salt Lake Sector V", "Park Street Central", "New Town Hub"]
+    }
+}
 
-HUBS = [
-    {"name": "NearDrop Hub — Secunderabad", "owner_name": "Ramesh Kumar",     "lat": 17.4520, "lng": 78.4870, "hub_type": HubType.kirana,    "trust_score": 91, "today_earnings": 125.0},
-    {"name": "NearDrop Hub — Madhapur",      "owner_name": "Latha Devi",       "lat": 17.4490, "lng": 78.3920, "hub_type": HubType.kirana,    "trust_score": 87, "today_earnings": 75.0},
-    {"name": "City Pharmacy - Kondapur",   "owner_name": "Dr. Venkat Rao",   "lat": 17.4602, "lng": 78.3548, "hub_type": HubType.pharmacy,  "trust_score": 95, "today_earnings": 200.0},
-    {"name": "Vasavi Apartments Reception","owner_name": "Security: Suresh", "lat": 17.4321, "lng": 78.4123, "hub_type": HubType.apartment, "trust_score": 82, "today_earnings": 50.0},
-    {"name": "Madhapur Medicals",          "owner_name": "Srinivas Goud",    "lat": 17.4478, "lng": 78.3921, "hub_type": HubType.pharmacy,  "trust_score": 89, "today_earnings": 150.0},
-    {"name": "Hitech City Kirana",         "owner_name": "Anand Sharma",     "lat": 17.4456, "lng": 78.3815, "hub_type": HubType.kirana,    "trust_score": 93, "today_earnings": 225.0},
-    {"name": "Prestige Plaza Reception",   "owner_name": "Security: Rakesh", "lat": 17.4189, "lng": 78.4634, "hub_type": HubType.apartment, "trust_score": 85, "today_earnings": 100.0},
-    {"name": "Jubilee Hills Mini Mart",    "owner_name": "Pallavi Rao",      "lat": 17.4312, "lng": 78.4089, "hub_type": HubType.kirana,    "trust_score": 90, "today_earnings": 175.0},
-]
-
-ADDRESSES = [
-    "Plot 42, Road No.12, Banjara Hills, Hyderabad - 500034",
-    "Flat 3B, Vasavi Towers, Kondapur, Hyderabad - 500084",
-    "H.No 15, Srinagar Colony, Ameerpet, Hyderabad - 500016",
-    "Shop 7, Jubilee Hills Check Post, Hyderabad - 500033",
-    "Plot 88, Madhapur, HITEC City, Hyderabad - 500081",
-    "Flat 201, Aditya Heights, Gachibowli, Hyderabad - 500032",
-    "H.No 33, Road 5, Banjara Hills, Hyderabad - 500034",
-    "Flat 4A, My Home Hub, Hitech City, Hyderabad - 500081",
-    "Plot 12, Kavuri Hills, Madhapur, Hyderabad - 500033",
-    "Office 301, Cyber Towers, HITEC City, Hyderabad - 500081",
-    "Villa 22, Jubilee Hills Phase 2, Hyderabad - 500033",
-    "Flat 501, Lotus Pond, Khairatabad, Hyderabad - 500004",
+DRIVER_NAMES = [
+    "Arjun Reddy", "Priya Sharma", "Mohammed Farhan", "Sneha Patel", "Karthik Nair",
+    "Rahul Verma", "Anita Singh", "Suresh Babu", "Deepa Krishnan", "Vikram Chandra",
+    "Meena Reddy", "Anil Kumar", "Sunita Joshi", "Ravi Teja", "Priyanka Das",
+    "Rajesh Khanna", "Sita Devi", "Karan Johar", "Vijay Sethupathi", "Naveen Polishetty"
 ]
 
 RECIPIENT_NAMES = [
     "Rahul Verma", "Anita Singh", "Suresh Babu", "Deepa Krishnan",
     "Vikram Chandra", "Meena Reddy", "Anil Kumar", "Sunita Joshi",
     "Ravi Teja", "Priyanka Das", "Mohan Lal", "Kavya Nair",
+    "Amitabh", "Deepika", "Ranbir", "Alia"
 ]
-
-# Realistic Hyderabad batch delivery data (address, lat, lng, customer details)
-BATCH_1_DELIVERIES = [
-    ("Flat 12B, Jubilee Hills Phase 2, Road 36, Hyderabad 500033", 17.4239, 78.4063, "Priya Sharma",    "priya.sharma@gmail.com",  "9876543210"),
-    ("Plot 55, Banjara Hills, Road 10, Hyderabad 500034",           17.4173, 78.4478, "Ravi Kumar",      "ravi.kumar@gmail.com",    "9876543211"),
-    ("H.No 22, Srinagar Colony, Ameerpet, Hyderabad 500016",        17.4317, 78.4488, "Deepa Nair",      "deepa.nair@gmail.com",    "9876543212"),
-    ("Flat 301, Vasavi Towers, Kondapur, Hyderabad 500084",         17.4601, 78.3540, "Suresh Babu",     "suresh.b@gmail.com",      "9876543213"),
-    ("Plot 88, Kavuri Hills, Madhapur, Hyderabad 500033",           17.4348, 78.3975, "Anita Singh",     "anita.singh@gmail.com",   "9876543214"),
-    ("Office 201, Cyber Towers, HITEC City, Hyderabad 500081",      17.4435, 78.3772, "Vikram Reddy",    "vikram.r@gmail.com",      "9876543215"),
-]
-
-BATCH_2_DELIVERIES = [
-    ("Flat 8A, My Home Hub, Hitech City, Hyderabad 500081",         17.4477, 78.3802, "Mohammed Ali",    "m.ali@gmail.com",         "9876543220"),
-    ("H.No 15, Gachibowli Village, Gachibowli, Hyderabad 500032",   17.4400, 78.3489, "Sunita Joshi",    "sunita.j@gmail.com",      "9876543221"),
-    ("Plot 12, Manikonda, Hyderabad 500089",                         17.4036, 78.3892, "Kiran Babu",      "kiran.b@gmail.com",       "9876543222"),
-    ("Flat 402, Aditya Heights, Gachibowli, Hyderabad 500032",      17.4420, 78.3510, "Meena Reddy",     "meena.r@gmail.com",       "9876543223"),
-    ("H.No 7, Tolichowki, Hyderabad 500008",                        17.4054, 78.4232, "Anil Kumar",      "anil.k@gmail.com",        "9876543224"),
-    ("Plot 33, Nanakramguda, Hyderabad 500032",                     17.4278, 78.3619, "Pooja Sharma",    "pooja.s@gmail.com",       "9876543225"),
-    ("Flat 201, Prestige Towers, Raidurgam, Hyderabad 500032",      17.4310, 78.3706, "Rajesh Verma",    "rajesh.v@gmail.com",      "9876543226"),
-    ("H.No 44, Puppalaguda, Hyderabad 500089",                      17.4100, 78.3780, "Kavya Nair",      "kavya.n@gmail.com",       "9876543227"),
-]
-
-
-# ── Specific Incidents from Dispatcher Portal V2 ─────────────────────────────────
-DISPATCHER_V2_INCIDENTS = [
-    {
-        "order_id": "DEL-2048",
-        "location": "Banjara Hills, Hyderabad",
-        "lat": 17.4102, "lng": 78.4482,
-        "status": DeliveryStatus.failed,
-        "failure_reason": "Customer not available",
-    },
-    {
-        "order_id": "DEL-2051",
-        "location": "Jubilee Hills, Hyderabad",
-        "lat": 17.4325, "lng": 78.4071,
-        "status": DeliveryStatus.failed,
-        "failure_reason": "Wrong address provided",
-    },
-    {
-        "order_id": "DEL-2039",
-        "location": "Gachibowli, Hyderabad",
-        "lat": 17.4401, "lng": 78.3489,
-        "status": DeliveryStatus.delivered,
-        "failure_reason": "Package damaged in transit",
-    },
-    {
-        "order_id": "DEL-2062",
-        "location": "Kondapur, Hyderabad",
-        "lat": 17.4600, "lng": 78.3626,
-        "status": DeliveryStatus.failed,
-        "failure_reason": "Delivery address locked",
-    },
-    {
-        "order_id": "DEL-2075",
-        "location": "Madhapur, Hyderabad",
-        "lat": 17.4485, "lng": 78.3908,
-        "status": DeliveryStatus.delivered,
-        "failure_reason": "Package refused by recipient",
-    },
-    {
-        "order_id": "DEL-2081",
-        "location": "Kukatpally, Hyderabad",
-        "lat": 17.4849, "lng": 78.4138,
-        "status": DeliveryStatus.failed,
-        "failure_reason": "Driver vehicle breakdown",
-    },
-    {
-        "order_id": "DEL-2094",
-        "location": "Secunderabad, Hyderabad",
-        "lat": 17.4399, "lng": 78.4983,
-        "status": DeliveryStatus.failed,
-        "failure_reason": "Attempted 3 times, no response",
-    },
-    {
-        "order_id": "DEL-2103",
-        "location": "LB Nagar, Hyderabad",
-        "lat": 17.3483, "lng": 78.5481,
-        "status": DeliveryStatus.failed,
-        "failure_reason": "Gate locked, no intercom",
-    },
-]
-
 
 async def seed():
     await init_db()
@@ -152,125 +120,6 @@ async def seed():
         await db.execute(text("DELETE FROM users"))
         await db.commit()
 
-        # ── Seed drivers ──────────────────────────────────────────────────────
-        drivers = []
-        now = datetime.utcnow()
-        for i, d in enumerate(DRIVERS):
-            driver = Driver(**d)
-            # First 3 drivers are "active" (pinged in last 5 minutes)
-            if i < 3:
-                driver.last_ping_at = now - timedelta(minutes=random.randint(1, 4))
-            db.add(driver)
-            drivers.append(driver)
-        await db.flush()
-
-        # ── Seed hubs ─────────────────────────────────────────────────────────
-        hubs = []
-        for h in HUBS:
-            hub = Hub(**h)
-            db.add(hub)
-            hubs.append(hub)
-        await db.flush()
-
-        # ── Seed standalone deliveries (50 spread across today) ───────────────
-        base_time = datetime.utcnow().replace(hour=7, minute=0, second=0, microsecond=0)
-        statuses = (
-            [DeliveryStatus.delivered] * 32 +
-            [DeliveryStatus.failed] * 8 +
-            [DeliveryStatus.en_route] * 7 +
-            [DeliveryStatus.arrived] * 3
-        )
-        random.shuffle(statuses)
-
-        for i in range(50):
-            driver = random.choice(drivers)
-            status = statuses[i]
-            offset_mins = random.randint(0, 600)
-            created = base_time + timedelta(minutes=offset_mins)
-            delivered_at = created + timedelta(minutes=random.randint(15, 45)) if status == DeliveryStatus.delivered else None
-
-            address = random.choice(ADDRESSES)
-            lat = round(random.uniform(17.3500, 17.4800), 4)
-            lng = round(random.uniform(78.3500, 78.5000), 4)
-
-            delivery = Delivery(
-                driver_id=driver.id,
-                address=address,
-                lat=lat,
-                lng=lng,
-                status=status,
-                package_size=random.choice(list(PackageSize)),
-                weight_kg=round(random.uniform(0.2, 10.0), 1),
-                created_at=created,
-                delivered_at=delivered_at,
-                recipient_name=random.choice(RECIPIENT_NAMES),
-                order_id=f"ND{10100 + i}",
-            )
-            db.add(delivery)
-
-        await db.flush()
-
-        # Guarantee driver 1 has an active en_route delivery
-        guaranteed_delivery = Delivery(
-            driver_id=1,
-            address="Plot 42, Road No.12, Banjara Hills, Hyderabad - 500034",
-            lat=17.4173,
-            lng=78.4478,
-            status=DeliveryStatus.en_route,
-            package_size=PackageSize.medium,
-            weight_kg=8.9,
-            created_at=datetime.utcnow() - timedelta(minutes=10),
-            recipient_name="Anita Singh",
-            order_id="ND10006",
-        )
-        db.add(guaranteed_delivery)
-
-        # Guarantee Hub 1 has an accepted broadcast (to show OTP)
-        guaranteed_failed = Delivery(
-            driver_id=2,
-            address="Shop 7, Jubilee Hills Check Post, Hyderabad - 500033",
-            lat=17.4320,
-            lng=78.4060,
-            status=DeliveryStatus.failed,
-            package_size=PackageSize.small,
-            weight_kg=1.2,
-            created_at=datetime.utcnow() - timedelta(minutes=30),
-            recipient_name="Rahul Verma",
-            order_id="ND10007",
-        )
-        db.add(guaranteed_failed)
-        await db.flush()
-
-        broadcast = HubBroadcast(
-            delivery_id=guaranteed_failed.id,
-            hub_id=1,
-            pickup_code="847291",
-            broadcast_at=datetime.utcnow() - timedelta(minutes=25),
-            accepted_at=datetime.utcnow() - timedelta(minutes=24),
-        )
-        db.add(broadcast)
-        hubs[0].today_earnings += 25.0
-
-        # Broadcasts for all failed standalone deliveries
-        failed_result = await db.execute(
-            __import__("sqlalchemy", fromlist=["select"]).select(Delivery).where(Delivery.status == DeliveryStatus.failed)
-        )
-        failed_deliveries = failed_result.scalars().all()
-        import string as st
-        for fd in failed_deliveries:
-            hub = random.choice(hubs)
-            code = "".join(random.choices(st.digits, k=6))
-            db.add(HubBroadcast(
-                delivery_id=fd.id,
-                hub_id=hub.id,
-                pickup_code=code,
-                broadcast_at=fd.created_at + timedelta(minutes=2),
-                accepted_at=fd.created_at + timedelta(minutes=5),
-            ))
-            hub.today_earnings += 25.0
-
-        await db.commit()
-
         # ── Seed dispatcher ───────────────────────────────────────────────────
         dispatcher = Dispatcher(
             name="Dispatch Admin",
@@ -280,139 +129,149 @@ async def seed():
         db.add(dispatcher)
         await db.flush()
 
-        # ── Seed batch 1: assigned to driver 1 (Arjun Reddy), mixed statuses ─
-        batch1 = DeliveryBatch(
-            batch_code="BATCH-20250331-001",
-            driver_id=drivers[0].id,
-            dispatcher_id=dispatcher.id,
-            total_deliveries=len(BATCH_1_DELIVERIES),
-            status="active",
-            assigned_at=datetime.utcnow().replace(hour=7, minute=30, second=0, microsecond=0),
-        )
-        db.add(batch1)
-        await db.flush()
-
-        batch1_statuses = [
-            DeliveryStatus.delivered,
-            DeliveryStatus.delivered,
-            DeliveryStatus.hub_delivered,
-            DeliveryStatus.en_route,
-            DeliveryStatus.en_route,
-            DeliveryStatus.en_route,
-        ]
-        for i, (addr, lat, lng, name, email, phone) in enumerate(BATCH_1_DELIVERIES):
-            status = batch1_statuses[i]
-            d_at = batch1.assigned_at + timedelta(minutes=30 * i + 25) if status == DeliveryStatus.delivered else None
-            db.add(Delivery(
-                driver_id=drivers[0].id,
-                batch_id=batch1.id,
-                address=addr,
-                status=status,
-                package_size=PackageSize.medium,
-                weight_kg=round(random.uniform(0.5, 5.0), 1),
-                created_at=batch1.assigned_at + timedelta(minutes=2),
-                delivered_at=d_at,
-                recipient_name=name,
-                customer_email=email,
-                customer_phone=phone,
-                order_id=f"ND2{100 + i:03d}",
-                queue_position=i + 1,
-                lat=lat,
-                lng=lng,
-            ))
-
-        # ── Seed batch 2: assigned to driver 2 (Priya Sharma), mostly pending ─
-        batch2 = DeliveryBatch(
-            batch_code="BATCH-20250331-002",
-            driver_id=drivers[1].id,
-            dispatcher_id=dispatcher.id,
-            total_deliveries=len(BATCH_2_DELIVERIES),
-            status="active",
-            assigned_at=datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=0),
-        )
-        db.add(batch2)
-        await db.flush()
-
-        batch2_statuses = [
-            DeliveryStatus.delivered,
-            DeliveryStatus.delivered,
-            DeliveryStatus.failed,
-            DeliveryStatus.en_route,
-            DeliveryStatus.en_route,
-            DeliveryStatus.en_route,
-            DeliveryStatus.en_route,
-            DeliveryStatus.en_route,
-        ]
-        for i, (addr, lat, lng, name, email, phone) in enumerate(BATCH_2_DELIVERIES):
-            status = batch2_statuses[i]
-            d_at = batch2.assigned_at + timedelta(minutes=20 * i + 18) if status == DeliveryStatus.delivered else None
-            db.add(Delivery(
-                driver_id=drivers[1].id,
-                batch_id=batch2.id,
-                address=addr,
-                status=status,
-                package_size=random.choice(list(PackageSize)),
-                weight_kg=round(random.uniform(0.3, 6.0), 1),
-                created_at=batch2.assigned_at + timedelta(minutes=2),
-                delivered_at=d_at,
-                recipient_name=name,
-                customer_email=email,
-                customer_phone=phone,
-                order_id=f"ND3{100 + i:03d}",
-                queue_position=i + 1,
-                lat=lat,
-                lng=lng,
-            ))
-
-        await db.commit()
-
-        # ── Seed users ────────────────────────────────────────────────────────
+        all_drivers = []
+        all_hubs = []
+        now = datetime.utcnow()
         driver_pw = hash_password("driver123")
         hub_pw = hash_password("hub123")
+        
+        user_count = 1
 
-        seed_users = [
-            User(phone="9000000001", hashed_password=driver_pw, role=UserRole.driver,
-                 name="Arjun Reddy",     driver_id=drivers[0].id),
-            User(phone="9000000002", hashed_password=driver_pw, role=UserRole.driver,
-                 name="Priya Sharma",    driver_id=drivers[1].id),
-            User(phone="9000000003", hashed_password=driver_pw, role=UserRole.driver,
-                 name="Mohammed Farhan", driver_id=drivers[2].id),
-            User(phone="9000000004", hashed_password=hub_pw, role=UserRole.hub_owner,
-                 name="Ramesh Kumar",   hub_id=hubs[0].id),
-            User(phone="9000000005", hashed_password=hub_pw, role=UserRole.hub_owner,
-                 name="Latha Devi",     hub_id=hubs[1].id),
-            User(phone="9000000006", hashed_password=hub_pw, role=UserRole.hub_owner,
-                 name="Dr. Venkat Rao", hub_id=hubs[2].id),
-        ]
-        for u in seed_users:
-            db.add(u)
+        for city in CITIES:
+            data = CITY_DATA[city]
+            lat_min, lat_max = data['bounds']['lat']
+            lng_min, lng_max = data['bounds']['lng']
+
+            # ── Seed drivers for city ──────────────────────────────────────────
+            city_drivers = []
+            for i in range(4): # 4 drivers per city
+                name = f"{random.choice(DRIVER_NAMES)} ({city})"
+                lat = round(random.uniform(lat_min, lat_max), 4)
+                lng = round(random.uniform(lng_min, lng_max), 4)
+                
+                driver = Driver(
+                    name=name,
+                    lat=lat,
+                    lng=lng,
+                    status=DeliveryStatus.en_route if random.random() > 0.3 else DeliveryStatus.delivered,
+                    trust_score=random.randint(70, 98),
+                    vehicle=random.choice(["Royal Enfield", "Activa", "TVS Jupiter", "Honda Shine", "Bajaj Pulsar"]),
+                    phone=f"+91 98765 {random.randint(10000, 99999)}",
+                    city=city,
+                    last_ping_at=now - timedelta(minutes=random.randint(1, 10))
+                )
+                db.add(driver)
+                city_drivers.append(driver)
+                all_drivers.append(driver)
+            await db.flush()
+
+            # Create users for drivers
+            for d in city_drivers:
+                db.add(User(
+                    phone=f"9{user_count:09d}",
+                    hashed_password=driver_pw,
+                    role=UserRole.driver,
+                    name=d.name,
+                    driver_id=d.id
+                ))
+                user_count += 1
+
+            # ── Seed hubs for city ─────────────────────────────────────────────
+            city_hubs = []
+            for hub_name in data['hubs']:
+                lat = round(random.uniform(lat_min, lat_max), 4)
+                lng = round(random.uniform(lng_min, lng_max), 4)
+                hub = Hub(
+                    name=hub_name,
+                    owner_name=f"Owner {random.randint(1, 100)}",
+                    lat=lat,
+                    lng=lng,
+                    hub_type=random.choice(list(HubType)),
+                    trust_score=random.randint(80, 95),
+                    today_earnings=random.uniform(50.0, 300.0),
+                    city=city,
+                    capacity=random.randint(15, 30),
+                    current_load=random.randint(0, 10)
+                )
+                db.add(hub)
+                city_hubs.append(hub)
+                all_hubs.append(hub)
+            await db.flush()
+
+            # Create users for hubs
+            for h in city_hubs:
+                db.add(User(
+                    phone=f"8{user_count:09d}",
+                    hashed_password=hub_pw,
+                    role=UserRole.hub_owner,
+                    name=h.owner_name,
+                    hub_id=h.id
+                ))
+                user_count += 1
+
+            # ── Seed deliveries for city ───────────────────────────────────────
+            base_time = now.replace(hour=7, minute=0, second=0, microsecond=0)
+            
+            # Sort drivers by trust score descending so best drivers get most orders
+            sorted_drivers = sorted(city_drivers, key=lambda d: d.trust_score, reverse=True)
+            # We have 15 deliveries per city. Distribute them biased towards top drivers.
+            # E.g. top driver gets 8, second gets 4, third gets 2, fourth gets 1.
+            delivery_assignments = [8, 4, 2, 1]
+            driver_pool = []
+            for d, count in zip(sorted_drivers, delivery_assignments):
+                driver_pool.extend([d] * count)
+
+            for i in range(15): # 15 standalone deliveries per city
+                driver = driver_pool[i]
+                
+                # Biased success rate based on driver's initial trust score
+                success_prob = driver.trust_score / 100.0
+                status = random.choices(
+                    [DeliveryStatus.delivered, DeliveryStatus.failed, DeliveryStatus.en_route, DeliveryStatus.arrived],
+                    weights=[success_prob, 0.15, 0.1, 0.05]
+                )[0]
+                
+                offset_mins = random.randint(0, 480)
+                created = base_time + timedelta(minutes=offset_mins)
+                delivered_at = created + timedelta(minutes=random.randint(15, 45)) if status == DeliveryStatus.delivered else None
+
+                addr = random.choice(data['addresses'])
+                lat = round(random.uniform(lat_min, lat_max), 4)
+                lng = round(random.uniform(lng_min, lng_max), 4)
+
+                delivery = Delivery(
+                    driver_id=driver.id,
+                    address=addr,
+                    lat=lat,
+                    lng=lng,
+                    status=status,
+                    package_size=random.choice(list(PackageSize)),
+                    weight_kg=round(random.uniform(0.2, 10.0), 1),
+                    created_at=created,
+                    delivered_at=delivered_at,
+                    recipient_name=random.choice(RECIPIENT_NAMES),
+                    order_id=f"ND-{city[:3].upper()}-{1000 + i + (CITIES.index(city)*20)}",
+                    city=city,
+                    failure_reason="Customer not available" if status == DeliveryStatus.failed else None
+                )
+                db.add(delivery)
+                await db.flush()
+
+                # If failed, add a hub broadcast
+                if status == DeliveryStatus.failed:
+                    hub = random.choice(city_hubs)
+                    code = "".join(random.choices(st.digits, k=6))
+                    db.add(HubBroadcast(
+                        delivery_id=delivery.id,
+                        hub_id=hub.id,
+                        pickup_code=code,
+                        broadcast_at=delivery.created_at + timedelta(minutes=2),
+                        accepted_at=delivery.created_at + timedelta(minutes=5),
+                    ))
+                    hub.today_earnings += 25.0
+
         await db.commit()
-
-        # ── Seed specific Dispatcher V2 incidents ─────────────────────────────
-        for inc_data in DISPATCHER_V2_INCIDENTS:
-            driver = random.choice(drivers)
-            delivery = Delivery(
-                driver_id=driver.id,
-                address=inc_data["location"],
-                lat=inc_data["lat"],
-                lng=inc_data["lng"],
-                status=inc_data["status"],
-                failure_reason=inc_data["failure_reason"],
-                order_id=inc_data["order_id"],
-                recipient_name=random.choice(RECIPIENT_NAMES),
-                package_size=random.choice(list(PackageSize)),
-                weight_kg=round(random.uniform(0.5, 5.0), 1),
-                created_at=datetime.utcnow() - timedelta(minutes=random.randint(60, 180)),
-            )
-            db.add(delivery)
-        await db.commit()
-
-        print(
-            "Seed complete: 5 drivers, 8 hubs, 50 standalone deliveries, "
-            "1 dispatcher, 2 batches (6+8 deliveries), 6 users, "
-            f"{len(DISPATCHER_V2_INCIDENTS)} V2 incidents"
-        )
-
+        print(f"Seed complete: {len(all_drivers)} drivers, {len(all_hubs)} hubs across {len(CITIES)} cities.")
 
 if __name__ == "__main__":
     asyncio.run(seed())
